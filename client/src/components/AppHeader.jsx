@@ -14,18 +14,18 @@ export default function AppHeader() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+        <Link to="/" className="flex min-w-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
             <Activity size={18} />
           </span>
-          <div className="leading-tight">
+          <div className="min-w-0 leading-tight">
             <div className="font-semibold text-slate-900">{APP_NAME}</div>
-            <div className="text-[11px] text-slate-500">
+            <div className="truncate text-[11px] text-slate-500">
               Bhiwandi-Nizampur City · Ward W14
             </div>
           </div>
         </Link>
-        <nav className="flex items-center gap-1">
+        <nav className="flex shrink-0 items-center gap-1">
           <NavLink to="/" end className={linkClass}>
             Report
           </NavLink>

@@ -4,7 +4,7 @@ import { Send, Loader2 } from "lucide-react";
 import { complaintTypes, streets } from "../data/seed";
 import { createComplaint, findDuplicates } from "../lib/complaints";
 import { saveContact } from "../lib/contacts";
-import { classifyComplaint } from "../lib/classify";
+import { classifyComplaint, fallbackClassify } from "../lib/classify";
 import PhotoInput from "../components/PhotoInput";
 import DuplicateNotice from "../components/DuplicateNotice";
 
@@ -17,6 +17,19 @@ const EMPTY = {
   phone: "",
   email: "",
 };
+
+// Hard client-side ceiling for the whole assessment step. classifyComplaint
+// already aborts its Gemini fetch at 3s, but on fully-dead wifi an edge case
+// could leave it unsettled — this guarantees the UI resolves (to the
+// deterministic fallback) within ~4s of the click, no matter what.
+const SUBMIT_CEILING_MS = 4000;
+
+function assessWithCeiling({ type, description }) {
+  const ceiling = new Promise((resolve) => {
+    setTimeout(() => resolve(fallbackClassify({ type, description })), SUBMIT_CEILING_MS);
+  });
+  return Promise.race([classifyComplaint({ type, description }), ceiling]);
+}
 
 export default function ReportPage() {
   const navigate = useNavigate();
@@ -44,27 +57,34 @@ export default function ReportPage() {
 
   async function finalize() {
     setSubmitting(true);
-    // The one AI moment: assess severity (real Gemini, deterministic fallback).
-    const assessment = await classifyComplaint({
-      type: form.type,
-      description: form.description.trim(),
-    });
-    const complaint = createComplaint({
-      type: form.type,
-      street: form.street,
-      description: form.description.trim(),
-      photo: form.photo,
-      severity: assessment.severity,
-      aiNote: assessment.aiNote,
-      source: assessment.source,
-    });
-    // Personal info (if any) is stored separately, keyed by complaint ID.
-    saveContact(complaint.id, {
-      name: form.name,
-      phone: form.phone,
-      email: form.email,
-    });
-    navigate(`/confirmation/${complaint.id}`);
+    try {
+      // The one AI moment: assess severity (real Gemini, deterministic
+      // fallback), bounded by a hard ~4s ceiling so submit never hangs.
+      const assessment = await assessWithCeiling({
+        type: form.type,
+        description: form.description.trim(),
+      });
+      const complaint = createComplaint({
+        type: form.type,
+        street: form.street,
+        description: form.description.trim(),
+        photo: form.photo,
+        severity: assessment.severity,
+        aiNote: assessment.aiNote,
+        source: assessment.source,
+      });
+      // Personal info (if any) is stored separately, keyed by complaint ID.
+      saveContact(complaint.id, {
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+      });
+      navigate(`/confirmation/${complaint.id}`);
+    } catch {
+      // Unexpected local failure — release the button so the citizen can retry
+      // rather than staring at a frozen "Submitting…" state.
+      setSubmitting(false);
+    }
   }
 
   function handleSubmit(e) {

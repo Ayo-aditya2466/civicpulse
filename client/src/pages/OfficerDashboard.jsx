@@ -91,16 +91,29 @@ export default function OfficerDashboard() {
         </div>
       </div>
 
-      {view === "map" ? (
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+          {all.length === 0 ? (
+            <>
+              <p className="text-sm font-medium text-slate-700">
+                No complaints in the queue yet.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                New citizen reports appear here automatically as they are
+                submitted.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              No complaints match this filter.
+            </p>
+          )}
+        </div>
+      ) : view === "map" ? (
         <OfficerMap complaints={filtered} />
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {filtered.length === 0 ? (
-            <p className="p-6 text-center text-sm text-slate-500">
-              No complaints match this filter.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100">
               {filtered.map((c) => (
                 <li key={c.id}>
                   <Link
@@ -139,7 +152,6 @@ export default function OfficerDashboard() {
                 </li>
               ))}
             </ul>
-          )}
         </div>
       )}
     </div>
