@@ -73,6 +73,31 @@ export function createComplaint({ type, street, description, photo }) {
   return complaint;
 }
 
+// --- Status transitions (officer, M2) --------------------------------------
+// Move a complaint one step forward through STATUS_FLOW, appending to history
+// using the same { status, at } shape M1 writes — so the citizen-side
+// StatusTimeline reflects officer changes automatically (same store). No-op
+// once the complaint has reached the final status.
+export function advanceStatus(id) {
+  const list = loadAll();
+  const idx = list.findIndex((c) => c.id === id);
+  if (idx === -1) return null;
+  const current = list[idx];
+  const pos = STATUS_FLOW.indexOf(current.status);
+  if (pos < 0 || pos >= STATUS_FLOW.length - 1) return current; // already final
+  const nextStatus = STATUS_FLOW[pos + 1];
+  const at = Date.now();
+  const updated = {
+    ...current,
+    status: nextStatus,
+    updatedAt: at,
+    history: [...current.history, { status: nextStatus, at }],
+  };
+  list[idx] = updated;
+  saveAll(list);
+  return updated;
+}
+
 // --- Duplicate suggestion (deterministic simulation) -----------------------
 // Same street + same type within the recent window. No NLP/embeddings/Gemini.
 export function findDuplicates({ type, street }) {
