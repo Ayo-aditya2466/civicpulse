@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, MapPin, Clock, Sparkles } from "lucide-react";
 import { getComplaint, advanceStatus } from "../lib/complaints";
 import { slaFor, formatRemaining } from "../lib/sla";
 import { STATUS_FLOW } from "../config";
@@ -15,6 +15,13 @@ function fmt(at) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Color the severity chip: 1-2 low, 3 medium, 4-5 high.
+function severityClass(severity) {
+  if (severity >= 4) return "bg-red-100 text-red-700";
+  if (severity === 3) return "bg-amber-100 text-amber-800";
+  return "bg-slate-100 text-slate-600";
 }
 
 export default function OfficerComplaintDetail() {
@@ -107,6 +114,26 @@ export default function OfficerComplaintDetail() {
               </div>
             </dl>
           </div>
+
+          {complaint.severity != null && complaint.aiNote && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center gap-2">
+                <Sparkles size={15} className="text-indigo-500" />
+                <h2 className="text-sm font-semibold text-slate-800">
+                  AI assessment
+                </h2>
+                <span
+                  className={
+                    "ml-auto rounded-full px-2.5 py-0.5 text-xs font-semibold " +
+                    severityClass(complaint.severity)
+                  }
+                >
+                  Severity {complaint.severity}/5
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-700">{complaint.aiNote}</p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-5">

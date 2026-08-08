@@ -3,7 +3,12 @@ import { AlertTriangle } from "lucide-react";
 
 // Shown before final submit when a similar recent complaint exists nearby.
 // Citizen may review the existing one or proceed anyway.
-export default function DuplicateNotice({ matches, onProceed, onCancel }) {
+export default function DuplicateNotice({
+  matches,
+  onProceed,
+  onCancel,
+  proceeding = false,
+}) {
   const many = matches.length > 1;
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
@@ -51,16 +56,18 @@ export default function DuplicateNotice({ matches, onProceed, onCancel }) {
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              disabled={proceeding}
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-70"
             >
               Go back
             </button>
             <button
               type="button"
               onClick={onProceed}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              disabled={proceeding}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-70"
             >
-              Submit anyway
+              {proceeding ? "Submitting…" : "Submit anyway"}
             </button>
           </div>
         </div>

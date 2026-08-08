@@ -11,6 +11,7 @@ import {
 } from "../config";
 import { wards, complaintTypes } from "../data/seed";
 import { readStore, writeStore } from "./storage";
+import { fallbackClassify } from "./classify";
 
 const WARD_ID = wards[0].id;
 const HOUR_MS = 60 * 60 * 1000;
@@ -51,7 +52,17 @@ export function getComplaint(id) {
 
 // --- Create ----------------------------------------------------------------
 // Operational fields only. No name/phone/email accepted or stored here.
-export function createComplaint({ type, street, description, photo }) {
+// severity/aiNote/source are additive (M3): the AI/fallback assessment. They
+// are optional so older records without them remain valid.
+export function createComplaint({
+  type,
+  street,
+  description,
+  photo,
+  severity = null,
+  aiNote = null,
+  source = null,
+}) {
   const list = loadAll();
   const now = Date.now();
   const complaint = {
@@ -67,6 +78,10 @@ export function createComplaint({ type, street, description, photo }) {
     createdAt: now,
     updatedAt: now,
     history: [{ status: STATUS_FLOW[0], at: now }],
+    // AI assessment (officer-only display). source is for our debugging.
+    severity,
+    aiNote,
+    source,
   };
   list.push(complaint);
   saveAll(list);
@@ -130,6 +145,11 @@ function buildDemoComplaints() {
       status,
       at: Math.round(createdAt + idx * step * HOUR_MS),
     }));
+    // Deterministic severity via the fallback classifier (no Gemini call).
+    const { severity, aiNote, source } = fallbackClassify({
+      type: d.type,
+      description: d.description,
+    });
     return {
       id: `${COMPLAINT_ID_PREFIX}-${WARD_ID}-${String(i + 1).padStart(4, "0")}`,
       type: d.type,
@@ -143,6 +163,9 @@ function buildDemoComplaints() {
       createdAt,
       updatedAt: history[history.length - 1].at,
       history,
+      severity,
+      aiNote,
+      source,
     };
   });
 }

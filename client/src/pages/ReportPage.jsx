@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { complaintTypes, streets } from "../data/seed";
 import { createComplaint, findDuplicates } from "../lib/complaints";
 import { saveContact } from "../lib/contacts";
+import { classifyComplaint } from "../lib/classify";
 import PhotoInput from "../components/PhotoInput";
 import DuplicateNotice from "../components/DuplicateNotice";
 
@@ -22,6 +23,7 @@ export default function ReportPage() {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [duplicates, setDuplicates] = useState(null); // pending confirmation
+  const [submitting, setSubmitting] = useState(false);
 
   const set = (key) => (e) => {
     const value = e?.target ? e.target.value : e;
@@ -40,12 +42,21 @@ export default function ReportPage() {
     return Object.keys(next).length === 0;
   }
 
-  function finalize() {
+  async function finalize() {
+    setSubmitting(true);
+    // The one AI moment: assess severity (real Gemini, deterministic fallback).
+    const assessment = await classifyComplaint({
+      type: form.type,
+      description: form.description.trim(),
+    });
     const complaint = createComplaint({
       type: form.type,
       street: form.street,
       description: form.description.trim(),
       photo: form.photo,
+      severity: assessment.severity,
+      aiNote: assessment.aiNote,
+      source: assessment.source,
     });
     // Personal info (if any) is stored separately, keyed by complaint ID.
     saveContact(complaint.id, {
@@ -58,6 +69,7 @@ export default function ReportPage() {
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (submitting) return;
     if (!validate()) return;
     const matches = findDuplicates({ type: form.type, street: form.street });
     if (matches.length > 0) {
@@ -77,6 +89,7 @@ export default function ReportPage() {
           matches={duplicates}
           onProceed={finalize}
           onCancel={() => setDuplicates(null)}
+          proceeding={submitting}
         />
       </div>
     );
@@ -217,10 +230,20 @@ export default function ReportPage() {
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+        disabled={submitting}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-70"
       >
-        <Send size={16} />
-        Submit complaint
+        {submitting ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            Submitting…
+          </>
+        ) : (
+          <>
+            <Send size={16} />
+            Submit complaint
+          </>
+        )}
       </button>
     </form>
   );
