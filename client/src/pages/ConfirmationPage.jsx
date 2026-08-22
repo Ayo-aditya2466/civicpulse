@@ -8,7 +8,7 @@ export default function ConfirmationPage() {
   const { id } = useParams();
   const complaint = getComplaint(id);
 
-  if (!complaint) return <Navigate to="/" replace />;
+  if (!complaint) return <Navigate to="/report" replace />;
 
   // Citizen-scope read; only used to greet them by name on their own receipt.
   const contact = getContact(id);

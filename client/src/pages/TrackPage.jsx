@@ -108,7 +108,7 @@ export default function TrackPage() {
       </div>
 
       <Link
-        to="/"
+        to="/report"
         className="block w-full rounded-lg border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         Report another issue

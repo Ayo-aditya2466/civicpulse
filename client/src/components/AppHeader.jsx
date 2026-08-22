@@ -14,7 +14,7 @@ export default function AppHeader() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-        <Link to="/" className="flex min-w-0 items-center gap-2">
+        <Link to="/report" className="flex min-w-0 items-center gap-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
             <Activity size={18} />
           </span>
@@ -26,7 +26,7 @@ export default function AppHeader() {
           </div>
         </Link>
         <nav className="flex shrink-0 items-center gap-1">
-          <NavLink to="/" end className={linkClass}>
+          <NavLink to="/report" end className={linkClass}>
             Report
           </NavLink>
           <NavLink to="/track" className={linkClass}>
