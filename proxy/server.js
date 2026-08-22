@@ -4,7 +4,15 @@ require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+// Allowed browser origins for CORS. Comma-separated list from ALLOWED_ORIGIN
+// (set on the deploy host to the real client URL); defaults to the local Vite
+// dev server so local development works with no env configuration.
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get("/health", (req, res) => {

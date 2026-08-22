@@ -3,8 +3,11 @@
 
 export const APP_NAME = "CivicPulse";
 
-// Base URL of the local Gemini proxy (proxy/server.js listens on 3001).
-export const PROXY_BASE_URL = "http://localhost:3001";
+// Base URL of the Gemini proxy. Reads VITE_PROXY_BASE_URL at build time (set on
+// the deploy host to the real proxy URL); defaults to the local proxy so local
+// development works with no env configuration.
+export const PROXY_BASE_URL =
+  import.meta.env.VITE_PROXY_BASE_URL || "http://localhost:3001";
 
 // localStorage keys used with lib/storage.js. Keep keys here, not inline.
 export const STORAGE_KEYS = {

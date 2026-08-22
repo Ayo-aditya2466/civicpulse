@@ -98,6 +98,31 @@ npm run lint      # eslint
 
 ---
 
+## Deployment
+
+The proxy and client deploy separately. Copy each `.env.example` to `.env` for local
+runs; set the same variables in the host dashboards for production. No secret or
+deployed URL is hardcoded in the source — everything comes from env vars.
+
+**Proxy → Render** (Web Service)
+- Root directory: `proxy`
+- Build command: `npm install`
+- Start command: `node server.js`
+- Environment variables:
+  - `GEMINI_API_KEY` — your Google Gemini key
+  - `ALLOWED_ORIGIN` — the deployed client URL (e.g. `https://your-app.vercel.app`); comma-separated if more than one
+
+**Client → Vercel**
+- Root directory: `client`
+- Framework preset: Vite
+- Environment variable:
+  - `VITE_PROXY_BASE_URL` — the deployed proxy URL (e.g. `https://your-proxy.onrender.com`)
+
+Deploy the proxy first, then set `VITE_PROXY_BASE_URL` to its URL before building the
+client, and set `ALLOWED_ORIGIN` on the proxy to the client's URL.
+
+---
+
 ## For the demo
 
 See **[`docs/demo-script.md`](docs/demo-script.md)** for the exact click-by-click
