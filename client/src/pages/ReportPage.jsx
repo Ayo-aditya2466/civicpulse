@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, Loader2 } from "lucide-react";
 import { complaintTypes, streets } from "../data/seed";
@@ -37,6 +37,9 @@ export default function ReportPage() {
   const [errors, setErrors] = useState({});
   const [duplicates, setDuplicates] = useState(null); // pending confirmation
   const [submitting, setSubmitting] = useState(false);
+  // Duplicate lookup is async now, so a second click could slip in before
+  // finalize() flips `submitting`. Ref, not state: purely a guard, no re-render.
+  const busy = useRef(false);
 
   const set = (key) => (e) => {
     const value = e?.target ? e.target.value : e;
@@ -64,7 +67,9 @@ export default function ReportPage() {
         type: form.type,
         description: form.description.trim(),
       });
-      const complaint = createComplaint({
+      // Both writes must complete before we navigate — the confirmation page
+      // reads them straight back out of the store.
+      const complaint = await createComplaint({
         type: form.type,
         street: form.street,
         description: form.description.trim(),
@@ -74,29 +79,41 @@ export default function ReportPage() {
         source: assessment.source,
       });
       // Personal info (if any) is stored separately, keyed by complaint ID.
-      saveContact(complaint.id, {
+      await saveContact(complaint.id, {
         name: form.name,
         phone: form.phone,
         email: form.email,
       });
       navigate(`/confirmation/${complaint.id}`);
-    } catch {
+    } catch (err) {
       // Unexpected local failure — release the button so the citizen can retry
       // rather than staring at a frozen "Submitting…" state.
+      console.error("CivicPulse: submission failed", err);
       setSubmitting(false);
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || busy.current) return;
     if (!validate()) return;
-    const matches = findDuplicates({ type: form.type, street: form.street });
-    if (matches.length > 0) {
-      setDuplicates(matches);
-      return;
+    busy.current = true;
+    try {
+      const matches = await findDuplicates({
+        type: form.type,
+        street: form.street,
+      });
+      if (matches.length > 0) {
+        setDuplicates(matches);
+        return;
+      }
+      await finalize();
+    } catch (err) {
+      // Duplicate lookup failed; surface it rather than dropping the rejection.
+      console.error("CivicPulse: duplicate check failed", err);
+    } finally {
+      busy.current = false;
     }
-    finalize();
   }
 
   if (duplicates) {

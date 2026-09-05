@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { List, Map as MapIcon, ImageIcon } from "lucide-react";
+import { List, Loader2, Map as MapIcon, ImageIcon } from "lucide-react";
 import { listComplaints } from "../lib/complaints";
 import { slaFor, urgencyRank } from "../lib/sla";
 import { STATUS_FLOW } from "../config";
@@ -12,7 +12,26 @@ export default function OfficerDashboard() {
   const [sortBy, setSortBy] = useState("urgency");
   const [view, setView] = useState("list");
 
-  const all = useMemo(() => listComplaints(), []);
+  // Loaded once on mount, exactly like the useMemo(..., []) this replaces —
+  // the queue still does not refresh after an officer changes a status
+  // elsewhere. That known defect is preserved deliberately, not fixed here.
+  const [all, setAll] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    listComplaints()
+      .then((rows) => {
+        if (alive) setAll(rows);
+      })
+      .catch((err) => console.error("CivicPulse: queue load failed", err))
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     let rows = all;
@@ -38,6 +57,14 @@ export default function OfficerDashboard() {
   const toggleBtn = (active) =>
     "flex items-center gap-1 px-3 py-2 text-sm font-medium " +
     (active ? "bg-slate-900 text-white" : "bg-white text-slate-600");
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16 text-slate-400">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

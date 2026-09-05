@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { getComplaint } from "../lib/complaints";
 import StatusTimeline from "../components/StatusTimeline";
 
@@ -9,19 +9,57 @@ export default function TrackPage() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [notFound, setNotFound] = useState(false);
+  // If we were handed an ID, look it up; otherwise a lookup prompt + form. The
+  // lookup is async, so it runs in an effect and the result is held in state.
+  // The result carries the id it was loaded for, which is what lets us tell
+  // "still fetching" apart from "genuinely not found" — the render below
+  // depends on that distinction, and the not-found message must not flash.
+  const [loaded, setLoaded] = useState(null); // { id, complaint }
+  const [looking, setLooking] = useState(false);
 
-  // If we were handed an ID, show it; otherwise a lookup prompt + form.
-  const complaint = paramId ? getComplaint(paramId) : null;
+  useEffect(() => {
+    if (!paramId) return;
+    let alive = true;
+    getComplaint(paramId)
+      .then((complaint) => {
+        if (alive) setLoaded({ id: paramId, complaint });
+      })
+      .catch((err) => {
+        console.error("CivicPulse: track lookup failed", err);
+        if (alive) setLoaded({ id: paramId, complaint: null });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [paramId]);
 
-  function handleLookup(e) {
+  const settled = !paramId || loaded?.id === paramId;
+  const complaint = settled && paramId ? loaded.complaint : null;
+
+  async function handleLookup(e) {
     e.preventDefault();
     const q = query.trim().toUpperCase();
-    if (!q) return;
-    if (getComplaint(q)) {
-      navigate(`/track/${q}`);
-    } else {
-      setNotFound(true);
+    if (!q || looking) return; // in-flight guard: the lookup is async now
+    setLooking(true);
+    try {
+      if (await getComplaint(q)) {
+        navigate(`/track/${q}`);
+      } else {
+        setNotFound(true);
+      }
+    } catch (err) {
+      console.error("CivicPulse: track lookup failed", err);
+    } finally {
+      setLooking(false);
     }
+  }
+
+  if (!settled) {
+    return (
+      <div className="flex justify-center py-16 text-slate-400">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
   }
 
   if (!complaint) {
@@ -52,9 +90,14 @@ export default function TrackPage() {
           />
           <button
             type="submit"
-            className="flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            disabled={looking}
+            className="flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
           >
-            <Search size={14} />
+            {looking ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Search size={14} />
+            )}
             Track
           </button>
         </form>

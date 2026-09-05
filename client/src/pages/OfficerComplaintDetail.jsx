@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, MapPin, Clock, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  MapPin,
+  Clock,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import { getComplaint, advanceStatus } from "../lib/complaints";
 import { slaFor, formatRemaining } from "../lib/sla";
 import { STATUS_FLOW } from "../config";
@@ -26,8 +33,36 @@ function severityClass(severity) {
 
 export default function OfficerComplaintDetail() {
   const { id } = useParams();
-  const [complaint, setComplaint] = useState(() => getComplaint(id));
+  // Async load in an effect, never during render. The result carries the id it
+  // was loaded for, so "still loading" is derived instead of held in a second
+  // state flag.
+  const [loaded, setLoaded] = useState(null); // { id, complaint }
+  const [advancing, setAdvancing] = useState(false);
 
+  useEffect(() => {
+    let alive = true;
+    getComplaint(id)
+      .then((complaint) => {
+        if (alive) setLoaded({ id, complaint });
+      })
+      .catch((err) => {
+        console.error("CivicPulse: complaint load failed", err);
+        if (alive) setLoaded({ id, complaint: null });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  if (loaded?.id !== id) {
+    return (
+      <div className="flex justify-center py-16 text-slate-400">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
+  }
+
+  const complaint = loaded.complaint;
   if (!complaint) return <Navigate to="/officer" replace />;
 
   const isFinal =
@@ -37,9 +72,17 @@ export default function OfficerComplaintDetail() {
     : STATUS_FLOW[STATUS_FLOW.indexOf(complaint.status) + 1];
   const { remainingMs, level } = slaFor(complaint);
 
-  function handleAdvance() {
-    const updated = advanceStatus(complaint.id);
-    if (updated) setComplaint(updated);
+  async function handleAdvance() {
+    if (advancing) return; // the write is async now: one transition at a time
+    setAdvancing(true);
+    try {
+      const updated = await advanceStatus(complaint.id);
+      if (updated) setLoaded({ id, complaint: updated });
+    } catch (err) {
+      console.error("CivicPulse: status advance failed", err);
+    } finally {
+      setAdvancing(false);
+    }
   }
 
   return (

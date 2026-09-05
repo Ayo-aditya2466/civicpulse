@@ -1,7 +1,11 @@
 // CivicPulse — complaints domain layer
-// The ONLY place complaint operational data is created/read. Backed by the M0
-// localStorage helper and M0 seed values. Contains no personal fields — those
-// live entirely in contacts.js. Officer/field code (M2) imports this module.
+// The ONLY place complaint operational data is created/read. Backed by the async
+// data-access seam in repo.js (which wraps the M0 localStorage helper) and M0
+// seed values. Contains no personal fields — those live entirely in contacts.js.
+// Officer/field code (M2) imports this module.
+//
+// Every storage-backed export is async-shaped as of M6 Step 1B: callers await.
+// The backing store is still localStorage; only the call shape changed.
 
 import {
   STORAGE_KEYS,
@@ -10,7 +14,7 @@ import {
   DUPLICATE_WINDOW_HOURS,
 } from "../config";
 import { wards, complaintTypes } from "../data/seed";
-import { readStore, writeStore } from "./storage";
+import { read, write } from "./repo";
 import { fallbackClassify } from "./classify";
 
 const WARD_ID = wards[0].id;
@@ -20,12 +24,14 @@ function deptForType(type) {
   return complaintTypes.find((c) => c.type === type)?.dept ?? null;
 }
 
-function loadAll() {
-  return readStore(STORAGE_KEYS.complaints, []);
+async function loadAll() {
+  return read(STORAGE_KEYS.complaints, []);
 }
 
-function saveAll(list) {
-  writeStore(STORAGE_KEYS.complaints, list);
+async function saveAll(list) {
+  // The boolean write() returns is deliberately still ignored here — silent
+  // write failure is a known defect carried forward unchanged from M1.
+  await write(STORAGE_KEYS.complaints, list);
 }
 
 // --- IDs -------------------------------------------------------------------
@@ -35,26 +41,31 @@ function seqOf(id) {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function nextComplaintId(list = loadAll()) {
+// Pure calculation over an explicit list — deliberately NOT async and
+// deliberately not storage-backed, so the sequence rule stays testable and
+// unchanged when the backing store changes. Callers that need the stored list
+// read it themselves (createComplaint already holds it).
+export function nextComplaintId(list) {
   const max = list.reduce((m, c) => Math.max(m, seqOf(c.id)), 0);
   const seq = String(max + 1).padStart(4, "0");
   return `${COMPLAINT_ID_PREFIX}-${WARD_ID}-${seq}`;
 }
 
 // --- Reads -----------------------------------------------------------------
-export function listComplaints() {
+export async function listComplaints() {
   return loadAll();
 }
 
-export function getComplaint(id) {
-  return loadAll().find((c) => c.id === id) ?? null;
+export async function getComplaint(id) {
+  const list = await loadAll();
+  return list.find((c) => c.id === id) ?? null;
 }
 
 // --- Create ----------------------------------------------------------------
 // Operational fields only. No name/phone/email accepted or stored here.
 // severity/aiNote/source are additive (M3): the AI/fallback assessment. They
 // are optional so older records without them remain valid.
-export function createComplaint({
+export async function createComplaint({
   type,
   street,
   description,
@@ -63,7 +74,7 @@ export function createComplaint({
   aiNote = null,
   source = null,
 }) {
-  const list = loadAll();
+  const list = await loadAll();
   const now = Date.now();
   const complaint = {
     id: nextComplaintId(list),
@@ -84,7 +95,7 @@ export function createComplaint({
     source,
   };
   list.push(complaint);
-  saveAll(list);
+  await saveAll(list);
   return complaint;
 }
 
@@ -93,8 +104,8 @@ export function createComplaint({
 // using the same { status, at } shape M1 writes — so the citizen-side
 // StatusTimeline reflects officer changes automatically (same store). No-op
 // once the complaint has reached the final status.
-export function advanceStatus(id) {
-  const list = loadAll();
+export async function advanceStatus(id) {
+  const list = await loadAll();
   const idx = list.findIndex((c) => c.id === id);
   if (idx === -1) return null;
   const current = list[idx];
@@ -109,15 +120,16 @@ export function advanceStatus(id) {
     history: [...current.history, { status: nextStatus, at }],
   };
   list[idx] = updated;
-  saveAll(list);
+  await saveAll(list);
   return updated;
 }
 
 // --- Duplicate suggestion (deterministic simulation) -----------------------
 // Same street + same type within the recent window. No NLP/embeddings/Gemini.
-export function findDuplicates({ type, street }) {
+export async function findDuplicates({ type, street }) {
   const cutoff = Date.now() - DUPLICATE_WINDOW_HOURS * HOUR_MS;
-  return loadAll()
+  const list = await loadAll();
+  return list
     .filter((c) => c.type === type && c.street === street && c.createdAt >= cutoff)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -171,12 +183,13 @@ function buildDemoComplaints() {
 }
 
 // Inject demo complaints once (guarded by a flag so a real fresh run seeds,
-// but we never clobber a store the citizen has already added to).
-export function ensureSeeded() {
-  if (readStore(STORAGE_KEYS.seeded, false)) return;
-  const list = loadAll();
+// but we never clobber a store the citizen has already added to). Awaited at
+// app startup so dependent pages never read an unseeded store.
+export async function ensureSeeded() {
+  if (await read(STORAGE_KEYS.seeded, false)) return;
+  const list = await loadAll();
   if (list.length === 0) {
-    saveAll(buildDemoComplaints());
+    await saveAll(buildDemoComplaints());
   }
-  writeStore(STORAGE_KEYS.seeded, true);
+  await write(STORAGE_KEYS.seeded, true);
 }

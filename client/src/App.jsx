@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import CitizenLayout from "./components/CitizenLayout";
 import OfficerLayout from "./components/OfficerLayout";
@@ -11,10 +11,19 @@ import OfficerComplaintDetail from "./pages/OfficerComplaintDetail";
 import { ensureSeeded } from "./lib/complaints";
 
 function App() {
+  // Seeding is async now, and pages read the same store, so we must not render
+  // a route before it settles — otherwise the officer dashboard can load an
+  // empty store and show its empty state. Smallest gate that works: one flag.
+  const [ready, setReady] = useState(false);
+
   // Inject synthetic demo complaints once so duplicate suggestion can fire.
   useEffect(() => {
-    ensureSeeded();
+    ensureSeeded()
+      .catch((err) => console.error("CivicPulse: seeding failed", err))
+      .finally(() => setReady(true));
   }, []);
+
+  if (!ready) return null;
 
   return (
     <Routes>

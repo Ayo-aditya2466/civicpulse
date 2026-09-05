@@ -1,17 +1,44 @@
+import { useEffect, useState } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
-import { CheckCircle2, MapPin } from "lucide-react";
+import { CheckCircle2, Loader2, MapPin } from "lucide-react";
 import { getComplaint } from "../lib/complaints";
 import { getContact } from "../lib/contacts";
 import StatusTimeline from "../components/StatusTimeline";
 
 export default function ConfirmationPage() {
   const { id } = useParams();
-  const complaint = getComplaint(id);
+  // Data access is async now, so it happens in an effect, never during render.
+  // The result carries the id it was loaded for, so "still loading" is derived
+  // rather than tracked in a second state — which also makes an id change
+  // correct for free. contact is a citizen-scope read, used only to greet them
+  // by name on their own receipt.
+  const [loaded, setLoaded] = useState(null); // { id, complaint, contact }
 
+  useEffect(() => {
+    let alive = true;
+    Promise.all([getComplaint(id), getContact(id)])
+      .then(([complaint, contact]) => {
+        if (alive) setLoaded({ id, complaint, contact });
+      })
+      .catch((err) => {
+        console.error("CivicPulse: confirmation load failed", err);
+        if (alive) setLoaded({ id, complaint: null, contact: null });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  if (loaded?.id !== id) {
+    return (
+      <div className="flex justify-center py-16 text-slate-400">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
+  }
+
+  const { complaint, contact } = loaded;
   if (!complaint) return <Navigate to="/report" replace />;
-
-  // Citizen-scope read; only used to greet them by name on their own receipt.
-  const contact = getContact(id);
 
   return (
     <div className="space-y-6">
