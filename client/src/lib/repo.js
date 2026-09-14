@@ -15,8 +15,11 @@
 // factories, no generic CRUD, no per-entity repositories, no Supabase
 // abstraction. Its only job is to make storage access async-shaped.
 //
-// write() returns whatever storage.js returns (a boolean). Callers that ignore
-// it today keep ignoring it — that behaviour is unchanged in this step.
+// write() rejects when the store refuses the value. That is the whole failure
+// contract, and it lives here for two reasons: a Supabase write already rejects
+// natively, so this file keeps its shape when the backing store changes; and a
+// rejection is one channel instead of two, so no caller has to remember to
+// check a boolean it currently discards.
 
 import { readStore, writeStore } from "./storage";
 
@@ -25,5 +28,8 @@ export async function read(key, fallback) {
 }
 
 export async function write(key, value) {
-  return writeStore(key, value);
+  if (!writeStore(key, value)) {
+    // storage.js has already logged the underlying cause.
+    throw new Error(`CivicPulse: could not save "${key}" — storage write failed`);
+  }
 }

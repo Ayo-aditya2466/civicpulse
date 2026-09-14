@@ -5,8 +5,9 @@
 // These tests pin that behaviour before the M6 refactor. All values below are
 // obviously-fake placeholders; no real contact data appears in tests.
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { saveContact, getContact } from "./contacts";
+import { createComplaint, getComplaint } from "./complaints";
 import { readStore } from "./storage";
 import { STORAGE_KEYS } from "../config";
 
@@ -101,5 +102,65 @@ describe("getContact", () => {
   it("returns null when the contact store has never been written", async () => {
     expect(readStore(STORAGE_KEYS.contacts, null)).toBeNull();
     expect(await getContact(COMPLAINT_ID)).toBeNull();
+  });
+});
+
+// A refused write used to resolve as though the details had been stored. It now
+// rejects at the seam (repo.js). Note that false still means only "nothing to
+// store" — the two outcomes never share a channel.
+describe("write failure", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function refuseWrites() {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  }
+
+  it("rejects rather than reporting a contact it did not store", async () => {
+    refuseWrites();
+    await expect(saveContact(COMPLAINT_ID, placeholder)).rejects.toThrow(
+      /storage write failed/,
+    );
+  });
+
+  it("persists nothing when the write is refused", async () => {
+    refuseWrites();
+    await expect(saveContact(COMPLAINT_ID, placeholder)).rejects.toThrow();
+    vi.restoreAllMocks();
+    expect(await getContact(COMPLAINT_ID)).toBeNull();
+  });
+
+  it("still returns false without attempting a write for a blank contact", async () => {
+    refuseWrites();
+    expect(await saveContact(COMPLAINT_ID, {})).toBe(false);
+  });
+
+  // ReportPage saves the complaint first and isolates the contact write in its
+  // own catch, on the strength of this invariant: the two stores are separate,
+  // so a refused contact write cannot damage or unsave a committed complaint.
+  // Asserted here at the store level — the component's control flow around it is
+  // not covered, as the suite has no DOM environment.
+  it("leaves an already-saved complaint intact and readable", async () => {
+    const complaint = await createComplaint({
+      type: "Pothole",
+      street: "Kaman Bhiwandi Road",
+      description: "Large pothole near the junction.",
+      photo: "data:image/jpeg;base64,TEST",
+    });
+
+    refuseWrites();
+    await expect(saveContact(complaint.id, placeholder)).rejects.toThrow(
+      /storage write failed/,
+    );
+    vi.restoreAllMocks();
+
+    // The complaint survived the failure whole — same record, still trackable.
+    expect(await getComplaint(complaint.id)).toEqual(complaint);
+    // ...and no partial contact record was left keyed against it.
+    expect(await getContact(complaint.id)).toBeNull();
   });
 });

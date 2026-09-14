@@ -17,11 +17,16 @@ export function readStore(key, fallback = null) {
 }
 
 // Write a JSON-serializable value. Returns true on success.
+// The boolean stays this primitive's contract; repo.js is what turns a false
+// into a rejection. The cause is logged here because this catch is the only
+// place it exists — a full quota and an unserialisable value both land as
+// `false`, and one of those is a bug while the other is a full disk.
 export function writeStore(key, value) {
   try {
     localStorage.setItem(withPrefix(key), JSON.stringify(value));
     return true;
-  } catch {
+  } catch (err) {
+    console.error(`CivicPulse: storage write failed for "${key}"`, err);
     return false;
   }
 }

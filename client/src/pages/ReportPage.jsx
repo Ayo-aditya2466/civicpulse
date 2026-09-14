@@ -67,8 +67,8 @@ export default function ReportPage() {
         type: form.type,
         description: form.description.trim(),
       });
-      // Both writes must complete before we navigate — the confirmation page
-      // reads them straight back out of the store.
+      // The complaint write gates navigation — the confirmation page reads it
+      // straight back out of the store, so it must be committed before we go.
       const complaint = await createComplaint({
         type: form.type,
         street: form.street,
@@ -79,15 +79,26 @@ export default function ReportPage() {
         source: assessment.source,
       });
       // Personal info (if any) is stored separately, keyed by complaint ID.
-      await saveContact(complaint.id, {
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-      });
+      // Its own try: the complaint above is already committed and trackable, so
+      // a failure here must not abandon it and leave the citizen filing a second
+      // one. They lose the callback details, not the complaint. The stores are
+      // independent — see the contacts.test.js "write failure" case that pins it.
+      try {
+        await saveContact(complaint.id, {
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+        });
+      } catch (err) {
+        console.error("CivicPulse: contact details could not be saved", err);
+      }
       navigate(`/confirmation/${complaint.id}`);
     } catch (err) {
-      // Unexpected local failure — release the button so the citizen can retry
-      // rather than staring at a frozen "Submitting…" state.
+      // The complaint did not save — as of M6 Step 1C a refused write rejects
+      // here instead of resolving, so we no longer navigate to a confirmation
+      // page with nothing behind it. Release the button so a retry is possible.
+      // Telling the citizen WHY is deliberately out of 1C scope: this path is
+      // logged (see storage.js for the cause) but still silent on screen.
       console.error("CivicPulse: submission failed", err);
       setSubmitting(false);
     }

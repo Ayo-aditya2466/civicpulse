@@ -482,3 +482,64 @@ describe("ensureSeeded", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. Write failure (M6 Step 1C)
+// ---------------------------------------------------------------------------
+// The one behaviour these tests DO change from Step 1A: a refused write used to
+// resolve as if it had succeeded. It now rejects at the seam (repo.js) and the
+// rejection travels out to the caller. A full quota against ~1 MB data-URL
+// photos is the realistic cause, so this path is not hypothetical.
+describe("write failure", () => {
+  // Install after any seeding — seedStore writes through the same primitive.
+  function refuseWrites() {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    return vi.spyOn(console, "error").mockImplementation(() => {});
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rejects createComplaint instead of returning an unsaved complaint", async () => {
+    refuseWrites();
+    await expect(createComplaint(validSubmission)).rejects.toThrow(
+      /storage write failed/,
+    );
+  });
+
+  it("persists nothing when the complaint write is refused", async () => {
+    refuseWrites();
+    await expect(createComplaint(validSubmission)).rejects.toThrow();
+    vi.restoreAllMocks();
+    expect(await listComplaints()).toEqual([]);
+  });
+
+  it("logs the underlying cause rather than discarding it", async () => {
+    const logged = refuseWrites();
+    await expect(createComplaint(validSubmission)).rejects.toThrow();
+    expect(logged).toHaveBeenCalled();
+    const cause = logged.mock.calls.at(-1).at(-1);
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause.message).toBe("QuotaExceededError");
+  });
+
+  it("rejects advanceStatus and leaves the stored status unchanged", async () => {
+    const stored = storedComplaint();
+    seedStore([stored]);
+    refuseWrites();
+    await expect(advanceStatus(stored.id)).rejects.toThrow(
+      /storage write failed/,
+    );
+    vi.restoreAllMocks();
+    expect((await getComplaint(stored.id)).status).toBe(STATUS_FLOW[0]);
+    expect((await getComplaint(stored.id)).history).toHaveLength(1);
+  });
+
+  it("rejects ensureSeeded so startup failure is not silent", async () => {
+    refuseWrites();
+    await expect(ensureSeeded()).rejects.toThrow(/storage write failed/);
+  });
+});

@@ -29,8 +29,10 @@ async function loadAll() {
 }
 
 async function saveAll(list) {
-  // The boolean write() returns is deliberately still ignored here — silent
-  // write failure is a known defect carried forward unchanged from M1.
+  // No branch here on purpose: write() rejects on failure (see repo.js), so the
+  // rejection travels out through createComplaint / advanceStatus / ensureSeeded
+  // to the caller that can actually tell the user. The M1 silent-write-failure
+  // defect is closed by that contract rather than by a check in every writer.
   await write(STORAGE_KEYS.complaints, list);
 }
 

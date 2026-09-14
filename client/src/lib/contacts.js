@@ -14,7 +14,9 @@ async function all() {
 }
 
 // Store contact info for a complaint. Anonymous submissions (no field filled)
-// create NO record at all. Returns true only when something was stored.
+// create NO record at all. Returns true only when something was stored, and
+// rejects if the store refuses it (see repo.js) — never resolves false to mean
+// "failed", because false already means "nothing to store".
 export async function saveContact(complaintId, { name, phone, email } = {}) {
   const hasAny = [name, phone, email].some((v) => v && String(v).trim());
   if (!hasAny) return false;
