@@ -37,10 +37,10 @@ const NOW = new Date("2026-03-01T12:00:00.000Z").getTime();
 function storedComplaint(overrides = {}) {
   return {
     id: `${"CP"}-${WARD_ID}-0001`,
-    type: "Pothole",
-    dept: "Road Department",
+    type: "Pothole / Road Damage",
+    dept: "Construction",
     wardId: WARD_ID,
-    street: "Kaman Bhiwandi Road",
+    street: "Khadipar Road",
     description: "Test description.",
     photo: null,
     status: STATUS_FLOW[0],
@@ -60,8 +60,8 @@ function seedStore(list) {
 }
 
 const validSubmission = {
-  type: "Pothole",
-  street: "Kaman Bhiwandi Road",
+  type: "Pothole / Road Damage",
+  street: "Khadipar Road",
   description: "Large pothole near the junction.",
   photo: "data:image/jpeg;base64,TEST",
 };
@@ -79,7 +79,7 @@ beforeEach(() => {
 describe("nextComplaintId", () => {
   it("uses the CP-<ward>-<4 digit sequence> format and starts at 0001", async () => {
     expect(nextComplaintId(await listComplaints())).toBe(`CP-${WARD_ID}-0001`);
-    expect(nextComplaintId(await listComplaints())).toMatch(/^CP-W14-\d{4}$/);
+    expect(nextComplaintId(await listComplaints())).toMatch(/^CP-W6-\d{4}$/);
   });
 
   it("derives the ward segment from the first seed ward, not a literal", async () => {
@@ -130,11 +130,17 @@ describe("nextComplaintId", () => {
 // ---------------------------------------------------------------------------
 describe("complaint type to department mapping", () => {
   it.each([
-    ["Pothole", "Road Department"],
-    ["Water Leakage", "Water Supply"],
-    ["Garbage Collection", "Solid Waste Management"],
-    ["Drainage Blockage", "Water Supply"],
-    ["Streetlight", "Road Department"],
+    ["Pothole / Road Damage", "Construction"],
+    ["Garbage", "Sanitation"],
+    ["Drainage Issues", "Sanitation"],
+    ["Water Leakage / Supply", "Water Supply"],
+    ["Streetlight Failure", "Electrical"],
+    ["Illegal Dumping", "Sanitation"],
+    ["Public Toilet Issues", "Sanitation"],
+    ["Fallen Trees", "Garden"],
+    ["Dead Animal Removal", "Sanitation"],
+    ["Encroachment", null],
+    ["Other", null],
   ])("maps %s to %s", async (type, dept) => {
     expect((await createComplaint({ ...validSubmission, type })).dept).toBe(dept);
   });
@@ -146,7 +152,7 @@ describe("complaint type to department mapping", () => {
         entry.dept,
       );
     }
-    expect(complaintTypes).toHaveLength(5);
+    expect(complaintTypes).toHaveLength(11);
   });
 
   it("resolves an unknown type to null rather than throwing", async () => {
@@ -154,7 +160,7 @@ describe("complaint type to department mapping", () => {
   });
 
   it("stores the department as a display string, not an id", async () => {
-    expect((await createComplaint(validSubmission)).dept).toBe("Road Department");
+    expect((await createComplaint(validSubmission)).dept).toBe("Construction");
   });
 });
 
@@ -174,8 +180,8 @@ describe("findDuplicates", () => {
   it("matches the same type on the same street inside the window", async () => {
     seedStore([storedComplaint({ createdAt: NOW - 24 * HOUR_MS })]);
     const hits = await findDuplicates({
-      type: "Pothole",
-      street: "Kaman Bhiwandi Road",
+      type: "Pothole / Road Damage",
+      street: "Khadipar Road",
     });
     expect(hits).toHaveLength(1);
     expect(hits[0].id).toBe(`CP-${WARD_ID}-0001`);
@@ -184,22 +190,22 @@ describe("findDuplicates", () => {
   it("does not match a different type on the same street", async () => {
     seedStore([storedComplaint({ createdAt: NOW - 24 * HOUR_MS })]);
     expect(
-      await findDuplicates({ type: "Streetlight", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Streetlight Failure", street: "Khadipar Road" }),
     ).toEqual([]);
   });
 
   it("does not match the same type on a different street", async () => {
     seedStore([storedComplaint({ createdAt: NOW - 24 * HOUR_MS })]);
-    expect(await findDuplicates({ type: "Pothole", street: "Anjur Phata" })).toEqual([]);
+    expect(await findDuplicates({ type: "Pothole / Road Damage", street: "Dargah Road" })).toEqual([]);
   });
 
   it("requires an exact street string — no normalisation or fuzzy matching", async () => {
     seedStore([storedComplaint({ createdAt: NOW - 24 * HOUR_MS })]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "kaman bhiwandi road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "khadipar road" }),
     ).toEqual([]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road " }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road " }),
     ).toEqual([]);
   });
 
@@ -211,7 +217,7 @@ describe("findDuplicates", () => {
       }),
     ]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" }),
     ).toHaveLength(1);
   });
 
@@ -220,7 +226,7 @@ describe("findDuplicates", () => {
       storedComplaint({ createdAt: NOW - DUPLICATE_WINDOW_HOURS * HOUR_MS }),
     ]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" }),
     ).toHaveLength(1);
   });
 
@@ -231,7 +237,7 @@ describe("findDuplicates", () => {
       }),
     ]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" }),
     ).toEqual([]);
   });
 
@@ -242,7 +248,7 @@ describe("findDuplicates", () => {
       storedComplaint({ id: `CP-${WARD_ID}-0003`, createdAt: NOW - 50 * HOUR_MS }),
     ]);
     expect(
-      (await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" })).map(
+      (await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" })).map(
         (c) => c.id,
       ),
     ).toEqual([
@@ -263,8 +269,8 @@ describe("findDuplicates", () => {
       }),
     ]);
     const hits = await findDuplicates({
-      type: "Pothole",
-      street: "Kaman Bhiwandi Road",
+      type: "Pothole / Road Damage",
+      street: "Khadipar Road",
     });
     expect(hits).toHaveLength(1);
     expect(hits[0].status).toBe("Resolved");
@@ -274,13 +280,13 @@ describe("findDuplicates", () => {
     // `demo: true` rows are not excluded from duplicate suggestions.
     seedStore([storedComplaint({ createdAt: NOW - HOUR_MS, demo: true })]);
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" }),
     ).toHaveLength(1);
   });
 
   it("returns an empty array when the store is empty", async () => {
     expect(
-      await findDuplicates({ type: "Pothole", street: "Kaman Bhiwandi Road" }),
+      await findDuplicates({ type: "Pothole / Road Damage", street: "Khadipar Road" }),
     ).toEqual([]);
   });
 });
@@ -363,7 +369,7 @@ describe("advanceStatus", () => {
 
   it("returns null for an unknown id and writes nothing", async () => {
     await createComplaint(validSubmission);
-    expect(await advanceStatus("CP-W14-9999")).toBeNull();
+    expect(await advanceStatus("CP-W6-9999")).toBeNull();
     expect(await listComplaints()).toHaveLength(1);
   });
 

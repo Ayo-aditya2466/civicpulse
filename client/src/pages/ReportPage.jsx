@@ -159,7 +159,7 @@ export default function ReportPage() {
           Report a civic issue
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Ward W14 · Kaman-Anjur Cluster. Your report reaches the right
+          Ward 6 · Prabhag No. 6. Your report reaches the right
           department automatically.
         </p>
       </div>

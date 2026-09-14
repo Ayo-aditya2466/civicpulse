@@ -21,7 +21,7 @@ export default function AppHeader() {
           <div className="min-w-0 leading-tight">
             <div className="font-semibold text-slate-900">{APP_NAME}</div>
             <div className="truncate text-[11px] text-slate-500">
-              Bhiwandi-Nizampur City · Ward W14
+              Bhiwandi-Nizampur City · Ward 6
             </div>
           </div>
         </Link>

@@ -1,67 +1,130 @@
-// CivicPulse — prototype seed data
+// CivicPulse — pilot seed data (BNCMC Ward 6)
 // Source of truth for wards, streets, departments, complaint types, and officers.
-// Values are fixed for the BWCMC demo. Do not invent alternates.
+// Values are grounded in the official Ward 6 election-boundary map and the
+// supplied municipal department/hierarchy document. Do not invent alternates.
+// Officers with phone: null are confirmed-ambiguous duplicate numbers pending
+// clarification from the municipal office — leave them null, do not guess.
 
 export const wards = [
   {
-    id: "W14",
-    name: "Kaman-Anjur Cluster",
-    committee: "Ward Committee 3",
+    id: "W6",
+    name: "Ward 6",
+    committee: "Prabhag No. 6",
+    population: 32192,
   },
 ];
 
 export const streets = [
-  "Kaman Bhiwandi Road",
-  "Anjur Phata",
-  "Golani Naka",
-  "Shanti Nagar",
-  "Purna Village Rd",
-  "Rahnal Naka",
+  "Khadipar Road",
+  "Kadak Road",
+  "Kariwali Road",
+  "Dargah Road",
+  "Tilak Chowk",
+  "Kalantri Chowk",
+  "Bazar Peth",
+  "Bunder Mohalla",
 ];
 
 export const departments = [
-  "Road Department",
+  "Garden",
   "Water Supply",
-  "Solid Waste Management",
+  "Construction",
+  "Electrical",
+  "Health",
+  "Sanitation",
 ];
 
+// dept: null means deliberately unmapped (Encroachment, Other) — the complaint
+// is created visibly unassigned rather than misrouted. deptForType in
+// complaints.js already handles null without a logic change.
 export const complaintTypes = [
   {
-    type: "Pothole",
-    dept: "Road Department",
+    type: "Pothole / Road Damage",
+    dept: "Construction",
     slaHours: 72,
   },
   {
-    type: "Water Leakage",
+    type: "Garbage",
+    dept: "Sanitation",
+    slaHours: 12,
+  },
+  {
+    type: "Drainage Issues",
+    dept: "Sanitation",
+    slaHours: 12,
+  },
+  {
+    type: "Water Leakage / Supply",
     dept: "Water Supply",
     slaHours: 24,
   },
   {
-    type: "Garbage Collection",
-    dept: "Solid Waste Management",
-    slaHours: 12,
-  },
-  {
-    type: "Drainage Blockage",
-    dept: "Water Supply",
-    slaHours: 12,
-  },
-  {
-    type: "Streetlight",
-    dept: "Road Department",
+    type: "Streetlight Failure",
+    dept: "Electrical",
     slaHours: 24,
+  },
+  {
+    type: "Illegal Dumping",
+    dept: "Sanitation",
+    slaHours: 24,
+  },
+  {
+    type: "Public Toilet Issues",
+    dept: "Sanitation",
+    slaHours: 24,
+  },
+  {
+    type: "Fallen Trees",
+    dept: "Garden",
+    slaHours: 24,
+  },
+  {
+    type: "Dead Animal Removal",
+    dept: "Sanitation",
+    slaHours: 12,
+  },
+  {
+    type: "Encroachment",
+    dept: null,
+    slaHours: 48,
+  },
+  {
+    type: "Other",
+    dept: null,
+    slaHours: 48,
   },
 ];
 
 export const officers = [
-  {
-    name: "Er. S. R. Patil",
-    role: "Ward Engineer",
-    ward: "W14",
-  },
-  {
-    name: "R. K. Deshmukh",
-    role: "Executive Engineer",
-    ward: "W14",
-  },
+  { name: "Ramnath Pandhure", role: "Supervisor", dept: "Garden", phone: null },
+  { name: "Nilesh Sankhe", role: "Chief Superintendent", dept: "Garden", phone: "9561680668" },
+  { name: "Sudhir Gurav", role: "Assistant Commissioner", dept: "Garden", phone: "9922786789" },
+  { name: "Balkrishna Kshirsagar", role: "Deputy Commissioner", dept: "Garden", phone: "9967461735" },
+  { name: "Vitthal Dake", role: "Additional Commissioner", dept: "Garden", phone: "7796491999" },
+
+  { name: "Ganesh Shingade", role: "Supervisor", dept: "Water Supply", phone: null },
+  { name: "Nafees Momin", role: "Senior Clerk", dept: "Water Supply", phone: "8208052655" },
+  { name: "Sarfaraz Ansari", role: "Deputy Engineer", dept: "Water Supply", phone: "9960620702" },
+  { name: "Sandeep Patnavar", role: "Executive Engineer (in-charge)", dept: "Water Supply", phone: "9823037828" },
+  { name: "Vikram Darade", role: "Deputy Commissioner", dept: "Water Supply", phone: "9158552075" },
+
+  { name: "Pradeep Gaikwad", role: "Supervisor", dept: "Construction", phone: "9860226066" },
+  { name: "Vinod Mate", role: "Deputy Engineer", dept: "Construction", phone: "9867296380" },
+  { name: "Jamir Patel", role: "City Engineer", dept: "Construction", phone: "9850729134" },
+  { name: "Vikram Darade", role: "Deputy Commissioner", dept: "Construction", phone: "9158552075" },
+
+  { name: "Vilas Virkar", role: "Supervisor", dept: "Electrical", phone: "9822896607" },
+  { name: "Dnyandev Waghmare", role: "Junior Engineer", dept: "Electrical", phone: null },
+  { name: "Siddique Kazi", role: "Executive Engineer (in-charge)", dept: "Electrical", phone: "9273004115" },
+  { name: "Vitthal Dake", role: "Additional Commissioner", dept: "Electrical", phone: "7796491999" },
+
+  { name: "Rupesh Gaikwad", role: "Health Inspector, Ward 6", dept: "Health", phone: "7276787773" },
+  { name: "Sunil Bhoir", role: "Prabhag Health Inspector", dept: "Health", phone: "9890206547" },
+  { name: "Haresh Bhandari", role: "Chief Health Inspector (in-charge)", dept: "Health", phone: null },
+  { name: "Faisal Tatli", role: "Head, Health & Sanitation", dept: "Health", phone: "9890125353" },
+
+  { name: "Mahendra Bhika", role: "Mukadam (Foreman), Wards 1 & 6", dept: "Sanitation", phone: "7498203878" },
+  { name: "Kisan Gohil", role: "Mukadam (Foreman), Ward 6", dept: "Sanitation", phone: "7972211289" },
+  { name: "Tulshidas Chavan", role: "Vehicle Mukadam", dept: "Sanitation", phone: "8087934233" },
+  { name: "Santosh Chavan", role: "Supervisor (SI)", dept: "Sanitation", phone: "8793609886" },
 ];

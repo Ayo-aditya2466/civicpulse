@@ -11,7 +11,7 @@ import { createComplaint, getComplaint } from "./complaints";
 import { readStore } from "./storage";
 import { STORAGE_KEYS } from "../config";
 
-const COMPLAINT_ID = "CP-W14-0001";
+const COMPLAINT_ID = "CP-W6-0001";
 
 const placeholder = {
   name: "Test Citizen",
@@ -77,10 +77,10 @@ describe("saveContact", () => {
   });
 
   it("keeps contacts for different complaints independent", async () => {
-    await saveContact("CP-W14-0001", { name: "First Citizen" });
-    await saveContact("CP-W14-0002", { name: "Second Citizen" });
-    expect((await getContact("CP-W14-0001")).name).toBe("First Citizen");
-    expect((await getContact("CP-W14-0002")).name).toBe("Second Citizen");
+    await saveContact("CP-W6-0001", { name: "First Citizen" });
+    await saveContact("CP-W6-0002", { name: "Second Citizen" });
+    expect((await getContact("CP-W6-0001")).name).toBe("First Citizen");
+    expect((await getContact("CP-W6-0002")).name).toBe("Second Citizen");
   });
 
   it("overwrites an existing contact for the same complaint", async () => {
@@ -96,7 +96,7 @@ describe("saveContact", () => {
 
 describe("getContact", () => {
   it("returns null for a complaint with no contact record", async () => {
-    expect(await getContact("CP-W14-0404")).toBeNull();
+    expect(await getContact("CP-W6-0404")).toBeNull();
   });
 
   it("returns null when the contact store has never been written", async () => {
@@ -146,8 +146,8 @@ describe("write failure", () => {
   // not covered, as the suite has no DOM environment.
   it("leaves an already-saved complaint intact and readable", async () => {
     const complaint = await createComplaint({
-      type: "Pothole",
-      street: "Kaman Bhiwandi Road",
+      type: "Pothole / Road Damage",
+      street: "Khadipar Road",
       description: "Large pothole near the junction.",
       photo: "data:image/jpeg;base64,TEST",
     });

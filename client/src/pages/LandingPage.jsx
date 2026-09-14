@@ -44,7 +44,7 @@ export default function LandingPage() {
             {APP_NAME}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Bhiwandi-Nizampur City · Ward W14
+            Bhiwandi-Nizampur City · Ward 6
           </p>
         </div>
 
@@ -104,7 +104,7 @@ export default function LandingPage() {
                       setStaffId(e.target.value);
                       setError("");
                     }}
-                    placeholder="e.g. BWCMC-W14-ENG"
+                    placeholder="e.g. BNCMC-W6-ENG"
                     className={inputClass}
                   />
                 </div>

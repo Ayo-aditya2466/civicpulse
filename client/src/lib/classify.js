@@ -17,12 +17,19 @@ import { PROXY_BASE_URL } from "../config";
 const TIMEOUT_MS = 3000;
 
 // Baseline severity per complaint type (deterministic, explainable).
+// Keys mirror data/seed.js complaintTypes exactly.
 const TYPE_BASELINE = {
-  Pothole: 2,
-  "Water Leakage": 3,
-  "Garbage Collection": 2,
-  "Drainage Blockage": 3,
-  Streetlight: 2,
+  "Pothole / Road Damage": 2,
+  "Water Leakage / Supply": 3,
+  "Garbage": 2,
+  "Drainage Issues": 3,
+  "Streetlight Failure": 2,
+  "Illegal Dumping": 2,
+  "Public Toilet Issues": 2,
+  "Fallen Trees": 3,
+  "Dead Animal Removal": 3,
+  "Encroachment": 2,
+  "Other": 2,
 };
 
 // Keywords that escalate severity, grouped by the bump they apply.

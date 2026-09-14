@@ -37,7 +37,7 @@ async function saveAll(list) {
 }
 
 // --- IDs -------------------------------------------------------------------
-// Format: CP-W14-0001. Sequence = (max existing sequence) + 1.
+// Format: CP-W6-0001. Sequence = (max existing sequence) + 1.
 function seqOf(id) {
   const n = parseInt(String(id).split("-").pop(), 10);
   return Number.isFinite(n) ? n : 0;
@@ -143,11 +143,11 @@ export async function findDuplicates({ type, street }) {
 function buildDemoComplaints() {
   const now = Date.now();
   const base = [
-    { type: "Pothole", street: "Kaman Bhiwandi Road", agoH: 48, status: "Assigned",
+    { type: "Pothole / Road Damage", street: "Khadipar Road", agoH: 48, status: "Assigned",
       description: "Large pothole near the junction, worsening after rain." },
-    { type: "Garbage Collection", street: "Golani Naka", agoH: 6, status: "Submitted",
+    { type: "Garbage", street: "Bazar Peth", agoH: 6, status: "Submitted",
       description: "Garbage not collected for three days at the market corner." },
-    { type: "Water Leakage", street: "Anjur Phata", agoH: 24, status: "In Progress",
+    { type: "Water Leakage / Supply", street: "Kariwali Road", agoH: 24, status: "In Progress",
       description: "Continuous water leakage from the main pipeline on the roadside." },
   ];
 

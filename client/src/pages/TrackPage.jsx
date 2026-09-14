@@ -71,7 +71,7 @@ export default function TrackPage() {
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             Enter the complaint ID you received after submitting (e.g.{" "}
-            <code className="rounded bg-slate-100 px-1">CP-W14-0001</code>).
+            <code className="rounded bg-slate-100 px-1">CP-W6-0001</code>).
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export default function TrackPage() {
               setQuery(e.target.value);
               setNotFound(false);
             }}
-            placeholder="e.g. CP-W14-0001"
+            placeholder="e.g. CP-W6-0001"
             className="flex-1 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
           />
           <button

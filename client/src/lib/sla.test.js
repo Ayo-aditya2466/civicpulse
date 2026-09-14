@@ -38,28 +38,34 @@ describe("slaFor", () => {
     expect(
       Object.fromEntries(complaintTypes.map((c) => [c.type, c.slaHours])),
     ).toEqual({
-      Pothole: 72,
-      "Water Leakage": 24,
-      "Garbage Collection": 12,
-      "Drainage Blockage": 12,
-      Streetlight: 24,
+      "Pothole / Road Damage": 72,
+      "Water Leakage / Supply": 24,
+      "Garbage": 12,
+      "Drainage Issues": 12,
+      "Streetlight Failure": 24,
+      "Illegal Dumping": 24,
+      "Public Toilet Issues": 24,
+      "Fallen Trees": 24,
+      "Dead Animal Removal": 12,
+      "Encroachment": 48,
+      "Other": 48,
     });
   });
 
   it("computes deadline as createdAt + slaHours", () => {
-    const { deadline } = slaFor(complaint("Pothole"), CREATED);
+    const { deadline } = slaFor(complaint("Pothole / Road Damage"), CREATED);
     expect(deadline).toBe(CREATED + 72 * HOUR_MS);
   });
 
   it("computes remainingMs as deadline - now", () => {
     const now = CREATED + 10 * HOUR_MS;
-    const { remainingMs } = slaFor(complaint("Water Leakage"), now);
+    const { remainingMs } = slaFor(complaint("Water Leakage / Supply"), now);
     expect(remainingMs).toBe(CREATED + 24 * HOUR_MS - now);
   });
 
   it("defaults now to the current clock when not supplied", () => {
     const { remainingMs } = slaFor({
-      type: "Pothole",
+      type: "Pothole / Road Damage",
       status: "Submitted",
       createdAt: Date.now(),
     });
@@ -69,7 +75,7 @@ describe("slaFor", () => {
 
   describe("the four levels", () => {
     it("is on-track with more than 25% of the window left", () => {
-      const type = "Pothole";
+      const type = "Pothole / Road Damage";
       const remaining = slaHoursFor(type) * HOUR_MS * (DUE_SOON_FRACTION + 0.1);
       expect(slaFor(complaint(type), whenRemaining(type, remaining)).level).toBe(
         "on-track",
@@ -77,7 +83,7 @@ describe("slaFor", () => {
     });
 
     it("is due-soon with less than 25% of the window left", () => {
-      const type = "Pothole";
+      const type = "Pothole / Road Damage";
       const remaining = slaHoursFor(type) * HOUR_MS * (DUE_SOON_FRACTION - 0.1);
       expect(slaFor(complaint(type), whenRemaining(type, remaining)).level).toBe(
         "due-soon",
@@ -86,21 +92,21 @@ describe("slaFor", () => {
 
     it("is overdue once remaining goes negative", () => {
       const now = CREATED + 73 * HOUR_MS;
-      const snapshot = slaFor(complaint("Pothole"), now);
+      const snapshot = slaFor(complaint("Pothole / Road Damage"), now);
       expect(snapshot.remainingMs).toBeLessThan(0);
       expect(snapshot.level).toBe("overdue");
     });
 
     it("is resolved whenever the status is the final status", () => {
       expect(STATUS_FLOW[STATUS_FLOW.length - 1]).toBe("Resolved");
-      expect(slaFor(complaint("Pothole", "Resolved"), CREATED).level).toBe(
+      expect(slaFor(complaint("Pothole / Road Damage", "Resolved"), CREATED).level).toBe(
         "resolved",
       );
     });
 
     it("reports resolved in preference to overdue on a late-but-closed complaint", () => {
       const snapshot = slaFor(
-        complaint("Pothole", "Resolved"),
+        complaint("Pothole / Road Damage", "Resolved"),
         CREATED + 500 * HOUR_MS,
       );
       expect(snapshot.remainingMs).toBeLessThan(0);
@@ -110,7 +116,7 @@ describe("slaFor", () => {
 
   describe("boundaries", () => {
     it("treats exactly 25% remaining as on-track, not due-soon", () => {
-      const type = "Pothole";
+      const type = "Pothole / Road Damage";
       const remaining = slaHoursFor(type) * HOUR_MS * DUE_SOON_FRACTION;
       expect(slaFor(complaint(type), whenRemaining(type, remaining)).level).toBe(
         "on-track",
@@ -118,7 +124,7 @@ describe("slaFor", () => {
     });
 
     it("treats one millisecond under 25% as due-soon", () => {
-      const type = "Pothole";
+      const type = "Pothole / Road Damage";
       const remaining = slaHoursFor(type) * HOUR_MS * DUE_SOON_FRACTION - 1;
       expect(slaFor(complaint(type), whenRemaining(type, remaining)).level).toBe(
         "due-soon",
@@ -126,13 +132,13 @@ describe("slaFor", () => {
     });
 
     it("treats the deadline instant itself as due-soon, not overdue", () => {
-      const snapshot = slaFor(complaint("Pothole"), CREATED + 72 * HOUR_MS);
+      const snapshot = slaFor(complaint("Pothole / Road Damage"), CREATED + 72 * HOUR_MS);
       expect(snapshot.remainingMs).toBe(0);
       expect(snapshot.level).toBe("due-soon");
     });
 
     it("treats one millisecond past the deadline as overdue", () => {
-      expect(slaFor(complaint("Pothole"), CREATED + 72 * HOUR_MS + 1).level).toBe(
+      expect(slaFor(complaint("Pothole / Road Damage"), CREATED + 72 * HOUR_MS + 1).level).toBe(
         "overdue",
       );
     });
@@ -191,17 +197,17 @@ describe("formatRemaining", () => {
 describe("urgencyRank", () => {
   it("returns remainingMs so that lower is more urgent", () => {
     const now = CREATED + 10 * HOUR_MS;
-    expect(urgencyRank(complaint("Pothole"), now)).toBe(
-      slaFor(complaint("Pothole"), now).remainingMs,
+    expect(urgencyRank(complaint("Pothole / Road Damage"), now)).toBe(
+      slaFor(complaint("Pothole / Road Damage"), now).remainingMs,
     );
   });
 
   it("is negative for an overdue complaint", () => {
-    expect(urgencyRank(complaint("Pothole"), CREATED + 90 * HOUR_MS)).toBeLessThan(0);
+    expect(urgencyRank(complaint("Pothole / Road Damage"), CREATED + 90 * HOUR_MS)).toBeLessThan(0);
   });
 
   it("puts a resolved complaint last with positive infinity", () => {
-    expect(urgencyRank(complaint("Pothole", "Resolved"), CREATED)).toBe(
+    expect(urgencyRank(complaint("Pothole / Road Damage", "Resolved"), CREATED)).toBe(
       Number.POSITIVE_INFINITY,
     );
   });
@@ -214,14 +220,14 @@ describe("urgencyRank", () => {
 
   it("sorts overdue first, then due-soon, then on-track, then resolved", () => {
     const now = CREATED + 100 * HOUR_MS;
-    const overdue = { type: "Pothole", status: "Submitted", createdAt: CREATED };
+    const overdue = { type: "Pothole / Road Damage", status: "Submitted", createdAt: CREATED };
     const dueSoon = {
-      type: "Pothole",
+      type: "Pothole / Road Damage",
       status: "Assigned",
       createdAt: now - 60 * HOUR_MS,
     };
-    const onTrack = { type: "Pothole", status: "Submitted", createdAt: now };
-    const resolved = { type: "Pothole", status: "Resolved", createdAt: CREATED };
+    const onTrack = { type: "Pothole / Road Damage", status: "Submitted", createdAt: now };
+    const resolved = { type: "Pothole / Road Damage", status: "Resolved", createdAt: CREATED };
 
     const order = [resolved, onTrack, overdue, dueSoon]
       .sort((a, b) => urgencyRank(a, now) - urgencyRank(b, now))
