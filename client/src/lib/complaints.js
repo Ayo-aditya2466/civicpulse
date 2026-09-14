@@ -16,6 +16,8 @@ import {
 import { wards, complaintTypes } from "../data/seed";
 import { read, write } from "./repo";
 import { fallbackClassify } from "./classify";
+import { appendEvent } from "./complaintEvents";
+import { recordDecision } from "./decisionResults";
 
 const WARD_ID = wards[0].id;
 const HOUR_MS = 60 * 60 * 1000;
@@ -66,7 +68,13 @@ export async function getComplaint(id) {
 // --- Create ----------------------------------------------------------------
 // Operational fields only. No name/phone/email accepted or stored here.
 // severity/aiNote/source are additive (M3): the AI/fallback assessment. They
-// are optional so older records without them remain valid.
+// are optional so older records without them remain valid. confidence (M7) is
+// likewise optional and only feeds the severity DecisionResult's detail.
+//
+// M7 dual-write: alongside the complaint, this appends a CREATED ComplaintEvent
+// and records department-routing + severity DecisionResults. Writes are strict-
+// propagate in order (complaint → event → routing → severity): a failure
+// anywhere rejects the whole operation per the M6 no-silent-success contract.
 export async function createComplaint({
   type,
   street,
@@ -75,13 +83,15 @@ export async function createComplaint({
   severity = null,
   aiNote = null,
   source = null,
+  confidence = null,
 }) {
   const list = await loadAll();
   const now = Date.now();
+  const dept = deptForType(type);
   const complaint = {
     id: nextComplaintId(list),
     type,
-    dept: deptForType(type),
+    dept,
     wardId: WARD_ID,
     street,
     description,
@@ -98,6 +108,33 @@ export async function createComplaint({
   };
   list.push(complaint);
   await saveAll(list);
+
+  await appendEvent({
+    complaintId: complaint.id,
+    type: "CREATED",
+    actor: "citizen",
+    at: now,
+  });
+  await recordDecision({
+    complaintId: complaint.id,
+    kind: "department-routing",
+    result: dept,
+    source: "rule",
+    createdAt: now,
+  });
+  if (severity !== null) {
+    const detail = {};
+    if (confidence !== null) detail.confidence = confidence;
+    if (aiNote !== null) detail.aiNote = aiNote;
+    await recordDecision({
+      complaintId: complaint.id,
+      kind: "severity",
+      result: severity,
+      source,
+      detail,
+      createdAt: now,
+    });
+  }
   return complaint;
 }
 
@@ -123,6 +160,17 @@ export async function advanceStatus(id) {
   };
   list[idx] = updated;
   await saveAll(list);
+  // M7 dual-write: the history entry above stays exactly as M1 wrote it
+  // (StatusTimeline reads it); the event below is the structured record.
+  // actor "officer" is a placeholder string pending real identity at M8.
+  await appendEvent({
+    complaintId: id,
+    type: "STATUS_CHANGED",
+    actor: "officer",
+    at,
+    from: current.status,
+    to: nextStatus,
+  });
   return updated;
 }
 

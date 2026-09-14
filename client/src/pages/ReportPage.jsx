@@ -77,6 +77,7 @@ export default function ReportPage() {
         severity: assessment.severity,
         aiNote: assessment.aiNote,
         source: assessment.source,
+        confidence: assessment.confidence,
       });
       // Personal info (if any) is stored separately, keyed by complaint ID.
       // Its own try: the complaint above is already committed and trackable, so

@@ -14,6 +14,8 @@ export const STORAGE_KEYS = {
   complaints: "complaints", // operational complaint data (officer-visible)
   contacts: "contacts", // citizen personal info (never officer-visible)
   seeded: "seeded", // flag: demo complaints already injected
+  complaintEvents: "complaintEvents", // append-only ComplaintEvent log (M7)
+  decisionResults: "decisionResults", // append-only DecisionResult log (M7)
 };
 
 // Complaint lifecycle. Order defines the timeline; index defines progress.
