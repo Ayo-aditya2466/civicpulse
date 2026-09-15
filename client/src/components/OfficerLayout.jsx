@@ -1,12 +1,32 @@
+import { useEffect, useState } from "react";
 import { Outlet, Link } from "react-router-dom";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, UserRound } from "lucide-react";
 import { APP_NAME } from "../config";
-import { officers, wards } from "../data/seed";
+import { getCurrentStaffPerson } from "../lib/roles";
+import { wards } from "../data/seed";
 
 // Officer console shell — deliberately a distinct ops look from the citizen
-// side. Shows the logged-in-style officer context (display only, no auth).
+// side. Shows the placeholder-signed-in staff context (display only, no auth).
+// If nobody is selected, we say so plainly rather than pretending someone is
+// authenticated.
 export default function OfficerLayout() {
-  const officer = officers[0];
+  const [person, setPerson] = useState(undefined); // undefined = loading
+
+  useEffect(() => {
+    let alive = true;
+    getCurrentStaffPerson()
+      .then((p) => {
+        if (alive) setPerson(p);
+      })
+      .catch((err) => {
+        console.error("CivicPulse: staff lookup failed", err);
+        if (alive) setPerson(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const ward = wards[0];
 
   return (
@@ -18,15 +38,28 @@ export default function OfficerLayout() {
               <LayoutGrid size={18} />
             </span>
             <div className="leading-tight">
-              <div className="font-semibold">{APP_NAME} · Officer Console</div>
+              <div className="font-semibold">{APP_NAME} · Staff Console</div>
               <div className="text-[11px] text-slate-300">
                 {ward.name} ({ward.id}) · {ward.committee}
               </div>
             </div>
           </Link>
           <div className="text-right leading-tight">
-            <div className="text-sm font-medium">{officer.name}</div>
-            <div className="text-[11px] text-slate-300">{officer.role}</div>
+            {person === undefined ? null : person ? (
+              <>
+                <div className="text-sm font-medium">{person.name}</div>
+                <div className="text-[11px] text-slate-300">
+                  {person.role} · {person.depts.join(" · ")}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                <UserRound size={12} /> No staff selected —
+                <Link to="/" className="underline hover:text-slate-200">
+                  choose a person
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </header>

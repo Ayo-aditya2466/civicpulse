@@ -19,6 +19,10 @@ import { STATUS_FLOW } from "../config";
 const HOUR_MS = 60 * 60 * 1000;
 const NOW = new Date("2026-03-01T12:00:00.000Z").getTime();
 
+// M8: staff transitions carry the acting person's id. Jamir Patel
+// (W6-CON-03, City Engineer, Construction) is a seeded manager.
+const ACTOR = { actorId: "W6-CON-03" };
+
 const validSubmission = {
   type: "Streetlight Failure",
   street: "Dargah Road",
@@ -78,13 +82,13 @@ describe("STATUS_CHANGED event", () => {
     try {
       const complaint = await createComplaint(validSubmission);
       vi.setSystemTime(NOW + HOUR_MS);
-      await advanceStatus(complaint.id);
+      await advanceStatus(complaint.id, ACTOR);
       const events = await listEventsFor(complaint.id);
       expect(events).toHaveLength(2);
       expect(events[1]).toMatchObject({
         complaintId: complaint.id,
         type: "STATUS_CHANGED",
-        actor: "officer",
+        actor: "W6-CON-03",
         from: "Submitted",
         to: "Assigned",
       });
@@ -98,9 +102,9 @@ describe("STATUS_CHANGED event", () => {
   it("records nothing for the no-op paths (unknown id, final status, unknown status)", async () => {
     const complaint = await createComplaint(validSubmission);
     await advanceStatus("CP-W6-9999");
-    await advanceStatus(complaint.id);
-    await advanceStatus(complaint.id);
-    await advanceStatus(complaint.id); // now Resolved
+    await advanceStatus(complaint.id, ACTOR);
+    await advanceStatus(complaint.id, ACTOR);
+    await advanceStatus(complaint.id, ACTOR); // now Resolved
     await advanceStatus(complaint.id); // no-op on final
     const events = await listEventsFor(complaint.id);
     // CREATED + exactly three transitions; the no-ops appended nothing.
@@ -120,7 +124,7 @@ describe("append-only log", () => {
   it("appends rather than replacing previous events", async () => {
     const a = await createComplaint(validSubmission);
     const b = await createComplaint(validSubmission);
-    await advanceStatus(a.id);
+    await advanceStatus(a.id, ACTOR);
     const all = await listEvents();
     expect(all).toHaveLength(3);
     expect(await listEventsFor(a.id)).toHaveLength(2);
@@ -133,8 +137,8 @@ describe("append-only log", () => {
     try {
       const complaint = await createComplaint(validSubmission);
       // Two transitions at the identical instant — only seq separates them.
-      await advanceStatus(complaint.id);
-      await advanceStatus(complaint.id);
+      await advanceStatus(complaint.id, ACTOR);
+      await advanceStatus(complaint.id, ACTOR);
       const events = await listEventsFor(complaint.id);
       expect(events.map((e) => e.seq)).toEqual([1, 2, 3]);
       expect(events[1].at).toBe(events[2].at);
@@ -198,7 +202,7 @@ describe("write failure", () => {
     const complaint = await createComplaint(validSubmission);
     vi.restoreAllMocks();
     refuseWrites();
-    await expect(advanceStatus(complaint.id)).rejects.toThrow(
+    await expect(advanceStatus(complaint.id, ACTOR)).rejects.toThrow(
       /storage write failed/,
     );
     vi.restoreAllMocks();
@@ -220,7 +224,7 @@ describe("complaint.history compatibility", () => {
       ]);
 
       vi.setSystemTime(NOW + HOUR_MS);
-      await advanceStatus(complaint.id);
+      await advanceStatus(complaint.id, ACTOR);
       const stored = await getComplaint(complaint.id);
       expect(stored.history).toEqual([
         { status: "Submitted", at: NOW },

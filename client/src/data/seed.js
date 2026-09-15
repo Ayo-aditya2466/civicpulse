@@ -95,36 +95,47 @@ export const complaintTypes = [
   },
 ];
 
+// People (M8): each officer gains a stable application id and a `roleClass`
+// (worker | manager | null). roleClass is an APPLICATION role classification
+// for the pilot — it is NOT a claim about official municipal rank or reporting
+// hierarchy, which the source data does not establish. Plain "Supervisor"
+// titles are deliberately null (OPEN) pending municipal clarification; they
+// can be selected as staff but cannot be assigned work in M8.
+// ids are person references, NOT authentication credentials.
+//
+// M8.5 Part E: one person = one row. Senior officials overseeing multiple
+// departments carry a `depts` ARRAY (their full affiliation from the source
+// data — not invented hierarchy). In M8 these two people wrongly existed as
+// two separate personIds; the retired ids (W6-CON-04, W6-ELE-04) still
+// resolve through the alias map in lib/roles.js so stored records keep reading.
 export const officers = [
-  { name: "Ramnath Pandhure", role: "Supervisor", dept: "Garden", phone: null },
-  { name: "Nilesh Sankhe", role: "Chief Superintendent", dept: "Garden", phone: "9561680668" },
-  { name: "Sudhir Gurav", role: "Assistant Commissioner", dept: "Garden", phone: "9922786789" },
-  { name: "Balkrishna Kshirsagar", role: "Deputy Commissioner", dept: "Garden", phone: "9967461735" },
-  { name: "Vitthal Dake", role: "Additional Commissioner", dept: "Garden", phone: "7796491999" },
+  { id: "W6-GAR-01", name: "Ramnath Pandhure", role: "Supervisor", depts: ["Garden"], phone: null, roleClass: null },
+  { id: "W6-GAR-02", name: "Nilesh Sankhe", role: "Chief Superintendent", depts: ["Garden"], phone: "9561680668", roleClass: "manager" },
+  { id: "W6-GAR-03", name: "Sudhir Gurav", role: "Assistant Commissioner", depts: ["Garden"], phone: "9922786789", roleClass: "manager" },
+  { id: "W6-GAR-04", name: "Balkrishna Kshirsagar", role: "Deputy Commissioner", depts: ["Garden"], phone: "9967461735", roleClass: "manager" },
+  { id: "W6-GAR-05", name: "Vitthal Dake", role: "Additional Commissioner", depts: ["Garden", "Electrical"], phone: "7796491999", roleClass: "manager" },
 
-  { name: "Ganesh Shingade", role: "Supervisor", dept: "Water Supply", phone: null },
-  { name: "Nafees Momin", role: "Senior Clerk", dept: "Water Supply", phone: "8208052655" },
-  { name: "Sarfaraz Ansari", role: "Deputy Engineer", dept: "Water Supply", phone: "9960620702" },
-  { name: "Sandeep Patnavar", role: "Executive Engineer (in-charge)", dept: "Water Supply", phone: "9823037828" },
-  { name: "Vikram Darade", role: "Deputy Commissioner", dept: "Water Supply", phone: "9158552075" },
+  { id: "W6-WAT-01", name: "Ganesh Shingade", role: "Supervisor", depts: ["Water Supply"], phone: null, roleClass: null },
+  { id: "W6-WAT-02", name: "Nafees Momin", role: "Senior Clerk", depts: ["Water Supply"], phone: "8208052655", roleClass: "manager" },
+  { id: "W6-WAT-03", name: "Sarfaraz Ansari", role: "Deputy Engineer", depts: ["Water Supply"], phone: "9960620702", roleClass: "manager" },
+  { id: "W6-WAT-04", name: "Sandeep Patnavar", role: "Executive Engineer (in-charge)", depts: ["Water Supply"], phone: "9823037828", roleClass: "manager" },
+  { id: "W6-WAT-05", name: "Vikram Darade", role: "Deputy Commissioner", depts: ["Water Supply", "Construction"], phone: "9158552075", roleClass: "manager" },
 
-  { name: "Pradeep Gaikwad", role: "Supervisor", dept: "Construction", phone: "9860226066" },
-  { name: "Vinod Mate", role: "Deputy Engineer", dept: "Construction", phone: "9867296380" },
-  { name: "Jamir Patel", role: "City Engineer", dept: "Construction", phone: "9850729134" },
-  { name: "Vikram Darade", role: "Deputy Commissioner", dept: "Construction", phone: "9158552075" },
+  { id: "W6-CON-01", name: "Pradeep Gaikwad", role: "Supervisor", depts: ["Construction"], phone: "9860226066", roleClass: null },
+  { id: "W6-CON-02", name: "Vinod Mate", role: "Deputy Engineer", depts: ["Construction"], phone: "9867296380", roleClass: "manager" },
+  { id: "W6-CON-03", name: "Jamir Patel", role: "City Engineer", depts: ["Construction"], phone: "9850729134", roleClass: "manager" },
 
-  { name: "Vilas Virkar", role: "Supervisor", dept: "Electrical", phone: "9822896607" },
-  { name: "Dnyandev Waghmare", role: "Junior Engineer", dept: "Electrical", phone: null },
-  { name: "Siddique Kazi", role: "Executive Engineer (in-charge)", dept: "Electrical", phone: "9273004115" },
-  { name: "Vitthal Dake", role: "Additional Commissioner", dept: "Electrical", phone: "7796491999" },
+  { id: "W6-ELE-01", name: "Vilas Virkar", role: "Supervisor", depts: ["Electrical"], phone: "9822896607", roleClass: null },
+  { id: "W6-ELE-02", name: "Dnyandev Waghmare", role: "Junior Engineer", depts: ["Electrical"], phone: null, roleClass: "worker" },
+  { id: "W6-ELE-03", name: "Siddique Kazi", role: "Executive Engineer (in-charge)", depts: ["Electrical"], phone: "9273004115", roleClass: "manager" },
 
-  { name: "Rupesh Gaikwad", role: "Health Inspector, Ward 6", dept: "Health", phone: "7276787773" },
-  { name: "Sunil Bhoir", role: "Prabhag Health Inspector", dept: "Health", phone: "9890206547" },
-  { name: "Haresh Bhandari", role: "Chief Health Inspector (in-charge)", dept: "Health", phone: null },
-  { name: "Faisal Tatli", role: "Head, Health & Sanitation", dept: "Health", phone: "9890125353" },
+  { id: "W6-HEA-01", name: "Rupesh Gaikwad", role: "Health Inspector, Ward 6", depts: ["Health"], phone: "7276787773", roleClass: "manager" },
+  { id: "W6-HEA-02", name: "Sunil Bhoir", role: "Prabhag Health Inspector", depts: ["Health"], phone: "9890206547", roleClass: "manager" },
+  { id: "W6-HEA-03", name: "Haresh Bhandari", role: "Chief Health Inspector (in-charge)", depts: ["Health"], phone: null, roleClass: "manager" },
+  { id: "W6-HEA-04", name: "Faisal Tatli", role: "Head, Health & Sanitation", depts: ["Health"], phone: "9890125353", roleClass: "manager" },
 
-  { name: "Mahendra Bhika", role: "Mukadam (Foreman), Wards 1 & 6", dept: "Sanitation", phone: "7498203878" },
-  { name: "Kisan Gohil", role: "Mukadam (Foreman), Ward 6", dept: "Sanitation", phone: "7972211289" },
-  { name: "Tulshidas Chavan", role: "Vehicle Mukadam", dept: "Sanitation", phone: "8087934233" },
-  { name: "Santosh Chavan", role: "Supervisor (SI)", dept: "Sanitation", phone: "8793609886" },
+  { id: "W6-SAN-01", name: "Mahendra Bhika", role: "Mukadam (Foreman), Wards 1 & 6", depts: ["Sanitation"], phone: "7498203878", roleClass: "worker" },
+  { id: "W6-SAN-02", name: "Kisan Gohil", role: "Mukadam (Foreman), Ward 6", depts: ["Sanitation"], phone: "7972211289", roleClass: "worker" },
+  { id: "W6-SAN-03", name: "Tulshidas Chavan", role: "Vehicle Mukadam", depts: ["Sanitation"], phone: "8087934233", roleClass: "worker" },
+  { id: "W6-SAN-04", name: "Santosh Chavan", role: "Supervisor (SI)", depts: ["Sanitation"], phone: "8793609886", roleClass: "worker" },
 ];

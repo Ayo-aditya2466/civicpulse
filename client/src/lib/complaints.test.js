@@ -28,6 +28,10 @@ import { wards, complaintTypes } from "../data/seed";
 const HOUR_MS = 60 * 60 * 1000;
 const WARD_ID = wards[0].id;
 
+// M8: status transitions require an acting staff person. Jamir Patel
+// (W6-CON-03, City Engineer, Construction) is a seeded manager.
+const ACTOR = { actorId: "W6-CON-03" };
+
 // A fixed instant so window/boundary arithmetic is exact rather than racing the
 // real clock. Chosen arbitrarily; no behaviour depends on the date itself.
 const NOW = new Date("2026-03-01T12:00:00.000Z").getTime();
@@ -317,9 +321,9 @@ describe("advanceStatus", () => {
   it("advances exactly one state per call", async () => {
     const id = (await createComplaint(validSubmission)).id;
     expect((await getComplaint(id)).status).toBe("Submitted");
-    expect((await advanceStatus(id)).status).toBe("Assigned");
-    expect((await advanceStatus(id)).status).toBe("In Progress");
-    expect((await advanceStatus(id)).status).toBe("Resolved");
+    expect((await advanceStatus(id, ACTOR)).status).toBe("Assigned");
+    expect((await advanceStatus(id, ACTOR)).status).toBe("In Progress");
+    expect((await advanceStatus(id, ACTOR)).status).toBe("Resolved");
   });
 
   it("appends one { status, at } history entry per transition", async () => {
@@ -327,7 +331,7 @@ describe("advanceStatus", () => {
     expect((await getComplaint(id)).history).toEqual([{ status: "Submitted", at: NOW }]);
 
     vi.setSystemTime(NOW + 5 * HOUR_MS);
-    const assigned = await advanceStatus(id);
+    const assigned = await advanceStatus(id, ACTOR);
     expect(assigned.history).toEqual([
       { status: "Submitted", at: NOW },
       { status: "Assigned", at: NOW + 5 * HOUR_MS },
@@ -340,27 +344,27 @@ describe("advanceStatus", () => {
     expect(created.updatedAt).toBe(NOW);
 
     vi.setSystemTime(NOW + 3 * HOUR_MS);
-    const advanced = await advanceStatus(created.id);
+    const advanced = await advanceStatus(created.id, ACTOR);
     expect(advanced.createdAt).toBe(NOW);
     expect(advanced.updatedAt).toBe(NOW + 3 * HOUR_MS);
   });
 
   it("persists the transition to the store", async () => {
     const id = (await createComplaint(validSubmission)).id;
-    await advanceStatus(id);
+    await advanceStatus(id, ACTOR);
     expect((await getComplaint(id)).status).toBe("Assigned");
     expect((await listComplaints())[0].status).toBe("Assigned");
   });
 
   it("is a no-op once Resolved — same status, no new history, unchanged updatedAt", async () => {
     const id = (await createComplaint(validSubmission)).id;
-    await advanceStatus(id);
-    await advanceStatus(id);
-    const resolved = await advanceStatus(id);
+    await advanceStatus(id, ACTOR);
+    await advanceStatus(id, ACTOR);
+    const resolved = await advanceStatus(id, ACTOR);
     expect(resolved.status).toBe("Resolved");
 
     vi.setSystemTime(NOW + 99 * HOUR_MS);
-    const again = await advanceStatus(id);
+    const again = await advanceStatus(id, ACTOR);
     expect(again.status).toBe("Resolved");
     expect(again.history).toHaveLength(4);
     expect(again.updatedAt).toBe(resolved.updatedAt);
@@ -383,7 +387,7 @@ describe("advanceStatus", () => {
   it("never moves backwards — there is no reopen or reject transition", async () => {
     const id = (await createComplaint(validSubmission)).id;
     const statuses = [];
-    for (let i = 0; i < 6; i += 1) statuses.push((await advanceStatus(id)).status);
+    for (let i = 0; i < 6; i += 1) statuses.push((await advanceStatus(id, ACTOR)).status);
     expect(statuses).toEqual([
       "Assigned",
       "In Progress",
@@ -392,6 +396,14 @@ describe("advanceStatus", () => {
       "Resolved",
       "Resolved",
     ]);
+  });
+
+  it("M8: rejects a transition with no actorId instead of writing actor \"officer\"", async () => {
+    const id = (await createComplaint(validSubmission)).id;
+    await expect(advanceStatus(id)).rejects.toThrow(/requires \{ actorId \}/);
+    // Nothing transitioned and no event was written.
+    expect((await getComplaint(id)).status).toBe("Submitted");
+    expect((await getComplaint(id)).history).toHaveLength(1);
   });
 });
 
@@ -464,18 +476,75 @@ describe("ensureSeeded", () => {
     expect(nextComplaintId(await listComplaints())).toBe(`CP-${WARD_ID}-0004`);
   });
 
-  it("is guarded by the seeded flag and runs only once", async () => {
+  it("is guarded by the seed version and runs only once per version", async () => {
     await ensureSeeded();
     localStorage.removeItem("civicpulse:complaints");
     await ensureSeeded();
     expect(await listComplaints()).toEqual([]);
   });
 
-  it("does not seed over a store that already has complaints", async () => {
-    await createComplaint(validSubmission);
+  it("seeds the demo set alongside real complaints, without touching them (M8.5)", async () => {
+    const real = await createComplaint(validSubmission); // CP-W6-0001
     await ensureSeeded();
-    expect(await listComplaints()).toHaveLength(1);
-    expect((await listComplaints())[0].demo).toBe(false);
+    const list = await listComplaints();
+    expect(list).toHaveLength(4);
+    const storedReal = list.find((c) => c.id === real.id);
+    expect(storedReal.demo).toBe(false);
+    expect(storedReal.description).toBe(real.description);
+    // Demo ids continue AFTER the real complaint's id — no collision.
+    expect(list.filter((c) => c.demo).map((c) => c.id)).toEqual([
+      `CP-${WARD_ID}-0002`,
+      `CP-${WARD_ID}-0003`,
+      `CP-${WARD_ID}-0004`,
+    ]);
+  });
+
+  it("replaces stale demo rows on a version bump but keeps real complaints (M8.5)", async () => {
+    // A browser that ran the old W14 build: stale demo rows + one real
+    // complaint, and the old boolean guard means no version was ever stored.
+    const stale = [
+      {
+        id: "CP-W14-0001",
+        type: "Garbage",
+        dept: "Sanitation",
+        wardId: "W14",
+        street: "Old Street",
+        description: "stale W14 demo row",
+        photo: null,
+        status: "Submitted",
+        demo: true,
+        createdAt: 1,
+        updatedAt: 1,
+        history: [{ status: "Submitted", at: 1 }],
+      },
+      {
+        id: "CP-W14-0002",
+        type: "Garbage",
+        dept: "Sanitation",
+        wardId: "W14",
+        street: "Old Street",
+        description: "real user complaint from the W14 era",
+        photo: null,
+        status: "Submitted",
+        demo: false,
+        createdAt: 2,
+        updatedAt: 2,
+        history: [{ status: "Submitted", at: 2 }],
+      },
+    ];
+    seedStore(stale);
+    await ensureSeeded();
+
+    const list = await listComplaints();
+    // The stale demo row is gone; the real W14-era complaint survives verbatim.
+    expect(list.map((c) => c.id)).not.toContain("CP-W14-0001");
+    const survived = list.find((c) => c.id === "CP-W14-0002");
+    expect(survived.demo).toBe(false);
+    expect(survived.description).toBe("real user complaint from the W14 era");
+    // The current Ward 6 demo set is present, ids continuing past the real row.
+    const demo = list.filter((c) => c.demo);
+    expect(demo).toHaveLength(3);
+    expect(demo.every((c) => c.id.startsWith(`CP-${WARD_ID}-`))).toBe(true);
   });
 
   it("gives demo complaints a deterministic fallback severity and no photo", async () => {
@@ -536,7 +605,7 @@ describe("write failure", () => {
     const stored = storedComplaint();
     seedStore([stored]);
     refuseWrites();
-    await expect(advanceStatus(stored.id)).rejects.toThrow(
+    await expect(advanceStatus(stored.id, ACTOR)).rejects.toThrow(
       /storage write failed/,
     );
     vi.restoreAllMocks();

@@ -13,10 +13,20 @@ export const PROXY_BASE_URL =
 export const STORAGE_KEYS = {
   complaints: "complaints", // operational complaint data (officer-visible)
   contacts: "contacts", // citizen personal info (never officer-visible)
-  seeded: "seeded", // flag: demo complaints already injected
+  seedVersion: "seedVersion", // demo-data version currently in the store (M8.5)
   complaintEvents: "complaintEvents", // append-only ComplaintEvent log (M7)
   decisionResults: "decisionResults", // append-only DecisionResult log (M7)
+  assignments: "assignments", // one current Assignment per complaintId (M8)
+  resolutionEvidence: "resolutionEvidence", // append-only evidence array (M8)
+  currentStaff: "currentStaff", // personId of the placeholder-signed-in staff (M8)
 };
+
+// Bump whenever the demo seed data changes: a browser running an older
+// version gets its demo rows (demo: true) replaced with the current set;
+// real user-submitted complaints are never touched. (The M8-era boolean
+// `seeded` flag froze old demo data forever on used browsers — that key is
+// now orphaned in those stores and simply ignored.)
+export const SEED_VERSION = "ward6-v1";
 
 // Complaint lifecycle. Order defines the timeline; index defines progress.
 export const STATUS_FLOW = ["Submitted", "Assigned", "In Progress", "Resolved"];

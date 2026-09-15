@@ -2,31 +2,38 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, Megaphone, Building2, ArrowRight, LogIn } from "lucide-react";
 import { APP_NAME } from "../config";
+import { officers, departments } from "../data/seed";
+import { setCurrentStaff } from "../lib/roles";
 
 // CivicPulse — role-selector landing page (the app's front door).
 //
 // ⚠️ PLACEHOLDER AUTH — NOT REAL AUTHENTICATION.
 // The "Municipal Staff" form is a login-LOOKING screen only. It does NOT check
 // credentials against anything, has no accounts, no database, no password
-// hashing, and stores nothing. It only validates that both fields are non-empty
-// and then routes to /officer. This will be replaced with real Supabase auth in
-// a future milestone once ward/officer data is available. Do not treat this as
-// a security boundary.
+// hashing. It lets the user PICK a seeded Ward 6 person and stores that
+// personId as the placeholder "signed-in" staff. Anyone can pick anyone —
+// a display convenience, NOT a security boundary. Replaced with real Supabase
+// auth in a future milestone.
 export default function LandingPage() {
   const navigate = useNavigate();
   const [showStaffLogin, setShowStaffLogin] = useState(false);
-  const [staffId, setStaffId] = useState("");
-  const [password, setPassword] = useState("");
+  const [personId, setPersonId] = useState("");
   const [error, setError] = useState("");
 
-  // Placeholder gate: non-empty check only — nothing is verified.
-  function handleStaffSubmit(e) {
+  // Placeholder gate: a real seeded person must be picked — nothing is verified.
+  async function handleStaffSubmit(e) {
     e.preventDefault();
-    if (!staffId.trim() || !password.trim()) {
-      setError("Please enter both fields.");
+    if (!personId) {
+      setError("Please select a staff member.");
       return;
     }
-    navigate("/officer");
+    try {
+      await setCurrentStaff(personId);
+      navigate("/officer");
+    } catch (err) {
+      console.error("CivicPulse: staff selection failed", err);
+      setError("Could not select that staff member.");
+    }
   }
 
   const inputClass =
@@ -96,32 +103,29 @@ export default function LandingPage() {
               <form onSubmit={handleStaffSubmit} className="mt-3 space-y-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Staff ID
+                    Staff member (Ward 6)
                   </label>
-                  <input
-                    value={staffId}
+                  <select
+                    value={personId}
                     onChange={(e) => {
-                      setStaffId(e.target.value);
+                      setPersonId(e.target.value);
                       setError("");
                     }}
-                    placeholder="e.g. BNCMC-W6-ENG"
                     className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setError("");
-                    }}
-                    placeholder="••••••••"
-                    className={inputClass}
-                  />
+                  >
+                    <option value="">Select a staff member…</option>
+                    {departments.map((dept) => (
+                      <optgroup key={dept} label={dept}>
+                        {officers
+                          .filter((p) => p.depts.includes(dept))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} — {p.role}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <button

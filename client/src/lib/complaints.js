@@ -12,6 +12,7 @@ import {
   STATUS_FLOW,
   COMPLAINT_ID_PREFIX,
   DUPLICATE_WINDOW_HOURS,
+  SEED_VERSION,
 } from "../config";
 import { wards, complaintTypes } from "../data/seed";
 import { read, write } from "./repo";
@@ -138,18 +139,30 @@ export async function createComplaint({
   return complaint;
 }
 
-// --- Status transitions (officer, M2) --------------------------------------
+// --- Status transitions (manager/worker, M2; identity M8) -------------------
 // Move a complaint one step forward through STATUS_FLOW, appending to history
 // using the same { status, at } shape M1 writes — so the citizen-side
 // StatusTimeline reflects officer changes automatically (same store). No-op
 // once the complaint has reached the final status.
-export async function advanceStatus(id) {
+//
+// M8: a transition REQUIRES an actorId (the acting staff person's id) — the
+// M7 actor: "officer" placeholder is retired for NEW actions and fails loudly
+// when missing. Historical events with actor: "officer" remain valid records
+// and are never rewritten. The no-op paths (unknown id, final status, status
+// outside STATUS_FLOW) return before the actor check, so read-only probes
+// still work without identity.
+export async function advanceStatus(id, { actorId } = {}) {
   const list = await loadAll();
   const idx = list.findIndex((c) => c.id === id);
   if (idx === -1) return null;
   const current = list[idx];
   const pos = STATUS_FLOW.indexOf(current.status);
   if (pos < 0 || pos >= STATUS_FLOW.length - 1) return current; // already final
+  if (!actorId || typeof actorId !== "string") {
+    throw new Error(
+      `CivicPulse: advanceStatus requires { actorId } for a transition (complaint "${id}")`,
+    );
+  }
   const nextStatus = STATUS_FLOW[pos + 1];
   const at = Date.now();
   const updated = {
@@ -162,11 +175,11 @@ export async function advanceStatus(id) {
   await saveAll(list);
   // M7 dual-write: the history entry above stays exactly as M1 wrote it
   // (StatusTimeline reads it); the event below is the structured record.
-  // actor "officer" is a placeholder string pending real identity at M8.
+  // actor is the acting staff person's id (M8); citizens never advance status.
   await appendEvent({
     complaintId: id,
     type: "STATUS_CHANGED",
-    actor: "officer",
+    actor: actorId,
     at,
     from: current.status,
     to: nextStatus,
@@ -232,14 +245,24 @@ function buildDemoComplaints() {
   });
 }
 
-// Inject demo complaints once (guarded by a flag so a real fresh run seeds,
-// but we never clobber a store the citizen has already added to). Awaited at
+// Inject the current demo set, versioned (M8.5 Part F). A store whose seed
+// version differs from SEED_VERSION gets its demo rows (demo: true — the flag
+// predates the Ward 6 swap, so it identifies old W14 demo rows too) replaced
+// with the current set; real user-submitted complaints (demo: false) are
+// NEVER deleted. Demo ids are assigned after the highest real id, so a real
+// complaint can never collide with or be shadowed by a demo row. Awaited at
 // app startup so dependent pages never read an unseeded store.
 export async function ensureSeeded() {
-  if (await read(STORAGE_KEYS.seeded, false)) return;
+  if ((await read(STORAGE_KEYS.seedVersion, null)) === SEED_VERSION) return;
+
   const list = await loadAll();
-  if (list.length === 0) {
-    await saveAll(buildDemoComplaints());
-  }
-  await write(STORAGE_KEYS.seeded, true);
+  const real = list.filter((c) => !c.demo);
+  const realMax = real.reduce((m, c) => Math.max(m, seqOf(c.id)), 0);
+  const demo = buildDemoComplaints().map((c, i) => ({
+    ...c,
+    id: `${COMPLAINT_ID_PREFIX}-${WARD_ID}-${String(realMax + i + 1).padStart(4, "0")}`,
+  }));
+
+  await saveAll([...real, ...demo]);
+  await write(STORAGE_KEYS.seedVersion, SEED_VERSION);
 }

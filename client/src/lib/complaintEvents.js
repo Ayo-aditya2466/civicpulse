@@ -5,16 +5,18 @@
 // a new action — a new action appends a new event.
 //
 // Shape:
-//   { complaintId, type: "CREATED" | "STATUS_CHANGED", actor, at, seq, ...typeFields }
+//   { complaintId, type: "CREATED" | "STATUS_CHANGED" | "ASSIGNED" |
+//                        "EVIDENCE_SUBMITTED", actor, at, seq, ...typeFields }
+//   ASSIGNED adds: assigneeId, dept (see lib/assignments.js).
+//   EVIDENCE_SUBMITTED adds: evidenceId, kind (see lib/resolutionEvidence.js).
 //
 // `seq` is PER-COMPLAINT: (max seq among that complaint's events) + 1. Two
 // events with the same `at` timestamp still order correctly by seq.
 // Callers do not pass seq — appendEvent() assigns it, so it can never drift.
 //
-// `actor` is a plain string: "citizen" | "officer" | "system". It carries no
-// identity because none exists yet. (M8 note: "officer" is a PLACEHOLDER
-// string pending real identity/roles at M8 — do not mistake it for a finished
-// design later.)
+// `actor` is a string. Citizens are actor: "citizen". Staff actions carry the
+// acting person's id from seed.js (M8); historical M7 records with
+// actor: "officer" remain valid and are never rewritten.
 //
 // Backed by the same storage.js/repo.js seam as everything else; a refused
 // write rejects (M6 Step 1C contract), so a failed append is never silent.

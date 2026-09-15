@@ -7,12 +7,26 @@ import {
   Clock,
   Loader2,
   Sparkles,
+  UserRoundCheck,
+  Paperclip,
 } from "lucide-react";
 import { getComplaint, advanceStatus } from "../lib/complaints";
+import { getAssignment, assignComplaint } from "../lib/assignments";
+import { listEvidenceFor, addEvidence } from "../lib/resolutionEvidence";
+import {
+  getCurrentStaffPerson,
+  roleClassOf,
+  canAssignWorkers,
+  canSubmitEvidence,
+  canAdvanceStatus,
+  personById,
+} from "../lib/roles";
+import { eligibleAssignees } from "../lib/assignmentPolicy";
 import { slaFor, formatRemaining } from "../lib/sla";
 import { STATUS_FLOW } from "../config";
 import StatusTimeline from "../components/StatusTimeline";
 import SlaBadge from "../components/SlaBadge";
+import PhotoInput from "../components/PhotoInput";
 
 function fmt(at) {
   return new Date(at).toLocaleString("en-IN", {
@@ -31,6 +45,9 @@ function severityClass(severity) {
   return "bg-slate-100 text-slate-600";
 }
 
+const inputClass =
+  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-slate-900/20";
+
 export default function OfficerComplaintDetail() {
   const { id } = useParams();
   // Async load in an effect, never during render. The result carries the id it
@@ -38,23 +55,46 @@ export default function OfficerComplaintDetail() {
   // state flag.
   const [loaded, setLoaded] = useState(null); // { id, complaint }
   const [advancing, setAdvancing] = useState(false);
+  // M8: assignment, evidence, and the placeholder-signed-in staff person.
+  const [assignment, setAssignment] = useState(undefined);
+  const [evidence, setEvidence] = useState(null);
+  const [staff, setStaff] = useState(undefined); // undefined = loading, null = none
+  const [workerId, setWorkerId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [note, setNote] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [submittingEvidence, setSubmittingEvidence] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     let alive = true;
     getComplaint(id)
-      .then((complaint) => {
-        if (alive) setLoaded({ id, complaint });
+      .then(async (complaint) => {
+        if (!alive) return;
+        // Reset the M8 state for THIS id before the complaint renders —
+        // batched with setLoaded, so the old complaint's assignment/evidence
+        // never flash against the new one.
+        setAssignment(undefined);
+        setEvidence(null);
+        setLoaded({ id, complaint });
+        if (complaint) {
+          setAssignment(await getAssignment(id));
+          setEvidence(await listEvidenceFor(id));
+        }
       })
       .catch((err) => {
         console.error("CivicPulse: complaint load failed", err);
         if (alive) setLoaded({ id, complaint: null });
       });
+    getCurrentStaffPerson()
+      .then((p) => alive && setStaff(p))
+      .catch(() => alive && setStaff(null));
     return () => {
       alive = false;
     };
   }, [id]);
 
-  if (loaded?.id !== id) {
+  if (loaded?.id !== id || staff === undefined) {
     return (
       <div className="flex justify-center py-16 text-slate-400">
         <Loader2 size={20} className="animate-spin" />
@@ -65,23 +105,72 @@ export default function OfficerComplaintDetail() {
   const complaint = loaded.complaint;
   if (!complaint) return <Navigate to="/officer" replace />;
 
+  const roleClass = roleClassOf(staff);
   const isFinal =
     STATUS_FLOW.indexOf(complaint.status) >= STATUS_FLOW.length - 1;
   const nextStatus = isFinal
     ? null
     : STATUS_FLOW[STATUS_FLOW.indexOf(complaint.status) + 1];
   const { remainingMs, level } = slaFor(complaint);
+  const workers = eligibleAssignees(staff, complaint);
+  const assignee = assignment ? personById(assignment.assigneeId) : null;
 
   async function handleAdvance() {
     if (advancing) return; // the write is async now: one transition at a time
     setAdvancing(true);
+    setActionError("");
     try {
-      const updated = await advanceStatus(complaint.id);
+      const updated = await advanceStatus(complaint.id, {
+        actorId: staff.id,
+      });
       if (updated) setLoaded({ id, complaint: updated });
     } catch (err) {
       console.error("CivicPulse: status advance failed", err);
+      setActionError("Could not update the status.");
     } finally {
       setAdvancing(false);
+    }
+  }
+
+  async function handleAssign() {
+    if (assigning || !workerId) return;
+    setAssigning(true);
+    setActionError("");
+    try {
+      const result = await assignComplaint({
+        complaintId: complaint.id,
+        assigneeId: workerId,
+        actorId: staff.id,
+      });
+      setAssignment(result.assignment);
+      setLoaded({ id, complaint: result.complaint });
+    } catch (err) {
+      console.error("CivicPulse: assignment failed", err);
+      setActionError("Could not assign this complaint.");
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleAddEvidence(kind, content) {
+    if (submittingEvidence) return;
+    setSubmittingEvidence(true);
+    setActionError("");
+    try {
+      await addEvidence({
+        complaintId: complaint.id,
+        kind,
+        content,
+        submittedBy: staff.id,
+      });
+      setEvidence(await listEvidenceFor(complaint.id));
+      setNote("");
+      setPhoto(null);
+    } catch (err) {
+      console.error("CivicPulse: evidence submission failed", err);
+      setActionError("Could not save the evidence.");
+    } finally {
+      setSubmittingEvidence(false);
     }
   }
 
@@ -108,6 +197,12 @@ export default function OfficerComplaintDetail() {
         </div>
         <SlaBadge complaint={complaint} />
       </div>
+
+      {actionError && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+          {actionError}
+        </p>
+      )}
 
       <div className="grid gap-5 md:grid-cols-3">
         <div className="space-y-5 md:col-span-2">
@@ -177,9 +272,149 @@ export default function OfficerComplaintDetail() {
               <p className="mt-2 text-sm text-slate-700">{complaint.aiNote}</p>
             </div>
           )}
+
+          {/* Resolution evidence (M8) — submission only, no verification model. */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-slate-800">
+              Resolution evidence
+            </h2>
+            {evidence === null || evidence.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No evidence submitted yet.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {evidence.map((ev) => {
+                  const submitter = personById(ev.submittedBy);
+                  return (
+                    <li
+                      key={ev.id}
+                      className="rounded-lg border border-slate-100 p-3"
+                    >
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <Paperclip size={12} /> {ev.id} · {ev.kind} ·{" "}
+                        {submitter
+                          ? `${submitter.name} (${submitter.depts.join("/")})`
+                          : ev.submittedBy}{" "}
+                        · {fmt(ev.submittedAt)}
+                      </div>
+                      {ev.kind === "photo" ? (
+                        <img
+                          src={ev.content}
+                          alt="Resolution evidence"
+                          className="mt-2 max-h-56 w-full rounded-lg border border-slate-200 object-cover"
+                        />
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-700">
+                          {ev.content}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {staff && canSubmitEvidence(roleClass) && (
+              <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add a work note as evidence…"
+                  rows={2}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  disabled={submittingEvidence || !note.trim()}
+                  onClick={() => handleAddEvidence("note", note.trim())}
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                >
+                  Submit note
+                </button>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-600">
+                    Or attach a photo
+                  </p>
+                  <PhotoInput value={photo} onChange={setPhoto} />
+                  <button
+                    type="button"
+                    disabled={submittingEvidence || !photo}
+                    onClick={() => handleAddEvidence("photo", photo)}
+                    className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                  >
+                    Submit photo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-5">
+          {/* Assignment (M8) — managers assign workers; the record shows who is
+              responsible. People shown by name only; no phone numbers. */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="mb-3 flex items-center gap-1 text-sm font-semibold text-slate-800">
+              <UserRoundCheck size={15} /> Assignment
+            </h2>
+            {assignment ? (
+              <div className="text-sm text-slate-700">
+                <p>
+                  <span className="font-medium">{assignee?.name}</span> (
+                  {assignee?.role})
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {assignment.dept} · assigned {fmt(assignment.assignedAt)} by{" "}
+                  {personById(assignment.assignedBy)?.name}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No worker assigned yet.
+              </p>
+            )}
+
+            {staff && canAssignWorkers(roleClass) && (
+              <div className="mt-3 space-y-2">
+                {workers.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    No assignable worker in {complaint.dept ?? "this department"}.
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      value={workerId}
+                      onChange={(e) => setWorkerId(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">
+                        {assignment ? "Reassign to…" : "Assign a worker…"}
+                      </option>
+                      {workers.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} — {w.role}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={assigning || !workerId}
+                      onClick={handleAssign}
+                      className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                    >
+                      {assigning
+                        ? "Assigning…"
+                        : assignment
+                          ? "Reassign"
+                          : "Assign"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="mb-3 text-sm font-semibold text-slate-800">
               Update status
@@ -190,18 +425,27 @@ export default function OfficerComplaintDetail() {
                 {complaint.status}
               </span>
             </div>
-            {isFinal ? (
+            {!staff ? (
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Select a staff member from the home page to update status.
+              </div>
+            ) : isFinal ? (
               <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                 This complaint is resolved.
               </div>
-            ) : (
+            ) : canAdvanceStatus(roleClass) ? (
               <button
                 type="button"
                 onClick={handleAdvance}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+                disabled={advancing}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
               >
                 Advance to {nextStatus} <ArrowRight size={15} />
               </button>
+            ) : (
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Your role cannot advance this complaint.
+              </div>
             )}
           </div>
 
